@@ -9,12 +9,43 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Weather & Air Quality Dashboard")
+# ------------------------
+# Theming
+# ------------------------
+st.markdown(
+    """
+    <style>
+    body { background-color: #0f1115; }
+    .main { background-color: #0f1115; }
+    .card {
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #1a1d23;
+        border: 1px solid #232834;
+        color: #e7ecf3;
+    }
+    .card .title { font-size: 0.85rem; color: #9aa4b5; margin-bottom: 4px; }
+    .card .value { font-size: 1.6rem; font-weight: 700; }
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
+st.title("Weather & Air Quality Dashboard")
 
 # ------------------------
 # Helpers
 # ------------------------
+@st.cache_data(ttl=60)
 def load_df(query, params=None):
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query(query, conn, params=params or {})
@@ -70,20 +101,102 @@ def compute_heat_index(temp_f, humidity):
     return hi.fillna(t)
 
 
+def compute_pm25_aqi(pm_value):
+    # US EPA PM2.5 breakpoints (24h AQI)
+    breakpoints = [
+        (0.0, 12.0, 0, 50),
+        (12.1, 35.4, 51, 100),
+        (35.5, 55.4, 101, 150),
+        (55.5, 150.4, 151, 200),
+        (150.5, 250.4, 201, 300),
+        (250.5, 350.4, 301, 400),
+        (350.5, 500.4, 401, 500),
+    ]
+    pm = float(pm_value) if pm_value is not None else None
+    if pm is None or pd.isna(pm):
+        return None
+    for c_low, c_high, a_low, a_high in breakpoints:
+        if c_low <= pm <= c_high:
+            return (a_high - a_low) / (c_high - c_low) * (pm - c_low) + a_low
+    return 500.0
+
+
+def aqi_category(aqi):
+    if aqi is None or pd.isna(aqi):
+        return "--"
+    if aqi <= 50:
+        return "Good"
+    if aqi <= 100:
+        return "Moderate"
+    if aqi <= 150:
+        return "Unhealthy for Sensitive Groups"
+    if aqi <= 200:
+        return "Unhealthy"
+    if aqi <= 300:
+        return "Very Unhealthy"
+    return "Hazardous"
+
+
+def aqi_color(aqi):
+    if aqi is None or pd.isna(aqi):
+        return "#2d2f36"
+    if aqi <= 50:
+        return "#1e8f4b"
+    if aqi <= 100:
+        return "#c6a700"
+    if aqi <= 150:
+        return "#d35400"
+    if aqi <= 200:
+        return "#c0392b"
+    if aqi <= 300:
+        return "#8e44ad"
+    return "#6e2c00"
+
+
+def info_card(title, value, subtitle=None, color="#1a1d23"):
+    st.markdown(
+        f"""
+        <div class="card" style="background:{color};">
+            <div class="title">{title}</div>
+            <div class="value">{value}</div>
+            <div style="color:#b0bacb; font-size:0.85rem;">{subtitle or ''}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def latest_ts_str(ts_epoch):
+    if pd.isna(ts_epoch):
+        return "--"
+    dt = epoch_to_dt(pd.Series([ts_epoch])).iloc[0]
+    return dt.strftime("%Y-%m-%d %I:%M %p")
+
+
 # ------------------------
-# Sidebar
+# Sidebar controls
 # ------------------------
 st.sidebar.header("Controls")
 
-hours = st.sidebar.slider(
+if "hours" not in st.session_state:
+    st.session_state.hours = 24
+
+preset_cols = st.sidebar.columns(4)
+presets = [6, 12, 24, 168]
+preset_labels = ["6h", "12h", "24h", "7d"]
+for col, hrs, label in zip(preset_cols, presets, preset_labels):
+    if col.button(label):
+        st.session_state.hours = hrs
+
+st.session_state.hours = st.sidebar.slider(
     "Time window (hours)",
     min_value=1,
     max_value=168,
-    value=24
+    value=int(st.session_state.hours),
 )
 
 since_epoch = int(
-    (pd.Timestamp.utcnow() - pd.Timedelta(hours=hours)).timestamp()
+    (pd.Timestamp.utcnow() - pd.Timedelta(hours=st.session_state.hours)).timestamp()
 )
 
 # ------------------------
@@ -116,30 +229,22 @@ if not tempest.empty:
     tempest["pressure_inhg"] = hpa_to_inhg(tempest["station_pressure"])
     tempest["wind_speed_mph"] = mps_to_mph(tempest["wind_avg"])
 
-    c1, c2, c3, c4 = st.columns(4)
+    t_latest = tempest.iloc[-1]
+    last_obs = latest_ts_str(t_latest.obs_epoch)
 
-    c1.metric(
-        "Temperature (F)",
-        f"{tempest.air_temperature_f.iloc[-1]:.1f}"
-    )
-    c2.metric(
-        "Heat Index (F)",
-        f"{tempest.heat_index_f.iloc[-1]:.1f}"
-    )
-    c3.metric(
-        "Humidity (%)",
-        f"{tempest.relative_humidity.iloc[-1]:.0f}"
-    )
-    c4.metric(
-        "Pressure (inHg)",
-        f"{tempest.pressure_inhg.iloc[-1]:.2f}"
-    )
+    st.caption(f"Last Tempest update: {last_obs} | Window: {st.session_state.hours}h")
 
-    st.line_chart(
+    t_cards = st.columns(4)
+    t_cards[0].metric("Temperature (F)", f"{t_latest.air_temperature_f:.1f}")
+    t_cards[1].metric("Heat Index (F)", f"{t_latest.heat_index_f:.1f}")
+    t_cards[2].metric("Humidity (%)", f"{t_latest.relative_humidity:.0f}")
+    t_cards[3].metric("Pressure (inHg)", f"{t_latest.pressure_inhg:.2f}")
+
+    st.area_chart(
         tempest.set_index("time")[
             ["air_temperature_f", "heat_index_f"]
         ],
-        height=300,
+        height=260,
     )
 
     st.line_chart(
@@ -152,13 +257,27 @@ else:
     st.info("No Tempest data in selected window.")
 
 # ------------------------
-# AirLink (Indoor AQ)
+# AirLink (Outdoor Air)
 # ------------------------
-st.subheader("Indoor AirLink")
+st.subheader("Outdoor AirLink (Air Quality)")
 
 airlink = load_df(
     """
-    SELECT *
+    SELECT
+        ts,
+        temp_f,
+        hum,
+        dew_point_f,
+        wet_bulb_f,
+        heat_index_f,
+        pm_1,
+        pm_2p5,
+        pm_10,
+        pm_2p5_last_1_hour,
+        pm_2p5_last_24_hours,
+        pm_2p5_nowcast,
+        pm_1_nowcast,
+        pm_10_nowcast
     FROM airlink_obs
     WHERE ts >= :since
     ORDER BY ts
@@ -168,39 +287,80 @@ airlink = load_df(
 
 if not airlink.empty:
     airlink["time"] = epoch_to_dt(airlink["ts"])
+    airlink["aqi_pm25"] = airlink["pm_2p5"].apply(compute_pm25_aqi)
+    airlink["aqi_pm25_last_1_hour"] = airlink["pm_2p5_last_1_hour"].apply(compute_pm25_aqi)
+    airlink["aqi_pm25_last_24_hours"] = airlink["pm_2p5_last_24_hours"].apply(compute_pm25_aqi)
+    airlink["aqi_pm25_nowcast"] = airlink["pm_2p5_nowcast"].apply(compute_pm25_aqi)
 
-    c1, c2, c3, c4 = st.columns(4)
+    latest = airlink.iloc[-1]
+    last_obs = latest_ts_str(latest.ts)
+    aqi_col = aqi_color(latest.aqi_pm25)
 
-    c1.metric(
-        "Indoor Temp (F)",
-        f"{airlink.temp_f.iloc[-1]:.1f}"
+    st.caption(f"Last AirLink update: {last_obs} | Window: {st.session_state.hours}h")
+
+    top_cols = st.columns(4)
+    info_card("Outside Temp (F)", f"{latest.temp_f:.1f}" if pd.notna(latest.temp_f) else "--", "from AirLink", color="#1d2432")
+    info_card("Heat Index (F)", f"{latest.heat_index_f:.1f}" if pd.notna(latest.heat_index_f) else "--", "AirLink", color="#1d2432")
+    info_card("Humidity (%)", f"{latest.hum:.0f}" if pd.notna(latest.hum) else "--", "AirLink", color="#1d2432")
+    with top_cols[3]:
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<span class='chip' style='background:{aqi_col}; color:white;'>AQI {latest.aqi_pm25:.0f if pd.notna(latest.aqi_pm25) else '--'} | {aqi_category(latest.aqi_pm25)}</span>",
+            unsafe_allow_html=True,
+        )
+
+    temp_bars = pd.DataFrame({
+        "Temperature": [
+            latest.temp_f,
+            latest.heat_index_f,
+            latest.dew_point_f,
+            latest.wet_bulb_f,
+        ]
+    }, index=["Outside Temp", "Heat Index", "Dew Point", "Wet Bulb"])
+    st.bar_chart(temp_bars, height=240)
+
+    aqi_cols = st.columns(3)
+    aqi_cols[0].metric(
+        "Current AQI (PM2.5)",
+        f"{latest.aqi_pm25:.0f}" if pd.notna(latest.aqi_pm25) else "--",
+        aqi_category(latest.aqi_pm25)
     )
-    c2.metric(
-        "Heat Index (F)",
-        f"{airlink.heat_index_f.iloc[-1]:.1f}"
+    aqi_cols[1].metric(
+        "1 Hour AQI (PM2.5)",
+        f"{latest.aqi_pm25_last_1_hour:.0f}" if pd.notna(latest.aqi_pm25_last_1_hour) else "--",
+        aqi_category(latest.aqi_pm25_last_1_hour)
     )
-    c3.metric(
-        "Humidity (%)",
-        f"{airlink.hum.iloc[-1]:.0f}"
+    aqi_cols[2].metric(
+        "NowCast AQI (PM2.5)",
+        f"{latest.aqi_pm25_nowcast:.0f}" if pd.notna(latest.aqi_pm25_nowcast) else "--",
+        aqi_category(latest.aqi_pm25_nowcast)
     )
-    c4.metric(
-        "PM2.5 (ug/m3)",
-        f"{airlink.pm_2p5.iloc[-1]:.1f}"
-    )
+
+    aqi_bar_df = pd.DataFrame({
+        "Value": [
+            latest.aqi_pm25,
+            latest.aqi_pm25_last_1_hour,
+            latest.aqi_pm25_nowcast,
+        ]
+    }, index=["Current AQI", "1 Hour AQI", "NowCast AQI"])
+    st.bar_chart(aqi_bar_df, height=240)
 
     st.line_chart(
-        airlink.set_index("time")[
-            ["temp_f", "heat_index_f"]
-        ],
-        height=300,
+        airlink.set_index("time")["aqi_pm25"].dropna(),
+        height=260,
     )
 
+    pm_bar_df = pd.DataFrame({
+        "ug/m3": [latest.pm_1, latest.pm_2p5, latest.pm_10]
+    }, index=["PM1", "PM2.5", "PM10"])
+    st.bar_chart(pm_bar_df, height=240)
+
     st.line_chart(
-        airlink.set_index("time")[
-            ["pm_1", "pm_2p5", "pm_10"]
-        ],
-        height=300,
+        airlink.set_index("time")["pm_1 pm_2p5 pm_10".split()].dropna(how="all"),
+        height=260,
     )
+
+    st.caption("AQI based on US EPA PM2.5 breakpoints; NowCast uses AirLink-provided nowcast field")
 else:
     st.info("No AirLink data in selected window.")
 
