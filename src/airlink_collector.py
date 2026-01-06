@@ -1,0 +1,176 @@
+import os
+import time
+import json
+import hashlib
+import sqlite3
+import traceback
+from pathlib import Path
+from datetime import datetime
+
+import requests
+
+ROOT = Path(__file__).resolve().parents[1]
+DB_PATH = ROOT / "data" / "tempest.db"
+LOG_PATH = ROOT / "logs" / "airlink_collector.log"
+
+HOST = os.environ.get("DAVIS_AIRLINK_HOST", "").rstrip("/")
+URL = f"{HOST}/v1/current_conditions"
+
+POLL_SEC = int(os.getenv("AIRLINK_POLL_SEC", "15"))
+HTTP_TIMEOUT = int(os.getenv("AIRLINK_HTTP_TIMEOUT", "8"))
+RETRY_SEC = int(os.getenv("AIRLINK_RETRY_SEC", "5"))
+
+
+def log(msg: str):
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"{ts} | {msg}"
+    print(line, flush=True)
+    with open(LOG_PATH, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+def sha256(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+def to_int(x):
+    try:
+        return None if x is None else int(float(x))
+    except Exception:
+        return None
+
+
+def to_float(x):
+    try:
+        return None if x is None else float(x)
+    except Exception:
+        return None
+
+
+def db():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    return conn
+
+
+def run():
+    if not HOST:
+        log("ERROR: DAVIS_AIRLINK_HOST not set (e.g. http://192.168.1.19)")
+        return
+
+    log(f"DB ready at: {DB_PATH}")
+    log(f"Polling AirLink URL={URL} every {POLL_SEC}s")
+
+    session = requests.Session()
+
+    while True:
+        try:
+            r = session.get(URL, timeout=HTTP_TIMEOUT, headers={"Accept": "application/json"})
+            r.raise_for_status()
+            payload = r.json()
+
+            received_at = int(time.time())
+            payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+            payload_hash = sha256(payload_text)
+
+            data = payload.get("data", {})
+            did = data.get("did")
+            ts = to_int(data.get("ts")) or received_at
+
+            conds = data.get("conditions") or []
+            c0 = conds[0] if conds else {}
+
+            with db() as conn:
+                # raw payload (deduplicated)
+                try:
+                    conn.execute(
+                        """
+                        INSERT INTO airlink_raw
+                          (received_at_epoch, host, did, ts, lsid, payload_json, payload_hash)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            received_at,
+                            HOST,
+                            did,
+                            ts,
+                            to_int(c0.get("lsid")),
+                            payload_text,
+                            payload_hash,
+                        ),
+                    )
+                except sqlite3.IntegrityError:
+                    pass
+
+                # structured observation
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO airlink_obs (
+                      did, ts,
+                      lsid, data_structure_type, last_report_time,
+                      temp_f, hum, dew_point_f, wet_bulb_f, heat_index_f,
+                      pm_1, pm_2p5, pm_10,
+                      pm_1_last, pm_2p5_last, pm_10_last,
+                      pm_1_last_1_hour, pm_2p5_last_1_hour, pm_10_last_1_hour,
+                      pm_1_last_3_hours, pm_2p5_last_3_hours, pm_10_last_3_hours,
+                      pm_1_last_24_hours, pm_2p5_last_24_hours, pm_10_last_24_hours,
+                      pm_1_nowcast, pm_2p5_nowcast, pm_10_nowcast,
+                      pct_pm_data_nowcast, pct_pm_data_last_1_hour,
+                      pct_pm_data_last_3_hours, pct_pm_data_last_24_hours
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        did,
+                        ts,
+                        to_int(c0.get("lsid")),
+                        to_int(c0.get("data_structure_type")),
+                        to_int(c0.get("last_report_time")),
+                        to_float(c0.get("temp")),
+                        to_float(c0.get("hum")),
+                        to_float(c0.get("dew_point")),
+                        to_float(c0.get("wet_bulb")),
+                        to_float(c0.get("heat_index")),
+                        to_float(c0.get("pm_1")),
+                        to_float(c0.get("pm_2p5")),
+                        to_float(c0.get("pm_10")),
+                        to_float(c0.get("pm_1_last")),
+                        to_float(c0.get("pm_2p5_last")),
+                        to_float(c0.get("pm_10_last")),
+                        to_float(c0.get("pm_1_last_1_hour")),
+                        to_float(c0.get("pm_2p5_last_1_hour")),
+                        to_float(c0.get("pm_10_last_1_hour")),
+                        to_float(c0.get("pm_1_last_3_hours")),
+                        to_float(c0.get("pm_2p5_last_3_hours")),
+                        to_float(c0.get("pm_10_last_3_hours")),
+                        to_float(c0.get("pm_1_last_24_hours")),
+                        to_float(c0.get("pm_2p5_last_24_hours")),
+                        to_float(c0.get("pm_10_last_24_hours")),
+                        to_float(c0.get("pm_1_nowcast")),
+                        to_float(c0.get("pm_2p5_nowcast")),
+                        to_float(c0.get("pm_10_nowcast")),
+                        to_float(c0.get("pct_pm_data_nowcast")),
+                        to_float(c0.get("pct_pm_data_last_1_hour")),
+                        to_float(c0.get("pct_pm_data_last_3_hours")),
+                        to_float(c0.get("pct_pm_data_last_24_hours")),
+                    ),
+                )
+                conn.commit()
+
+            log(
+                f"Stored airlink_obs did={did} ts={ts} "
+                f"pm2.5={c0.get('pm_2p5')} temp_f={c0.get('temp')} hum={c0.get('hum')}"
+            )
+
+            time.sleep(POLL_SEC)
+
+        except Exception as e:
+            log(f"ERROR: {repr(e)}")
+            traceback.print_exc()
+            time.sleep(RETRY_SEC)
+
+
+if __name__ == "__main__":
+    run()

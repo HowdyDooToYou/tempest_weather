@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/*.log
+
+# Secrets
+.env
