@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import pandas as pd
 import streamlit as st
 
@@ -295,17 +295,21 @@ if not airlink.empty:
     latest = airlink.iloc[-1]
     last_obs = latest_ts_str(latest.ts)
     aqi_col = aqi_color(latest.aqi_pm25)
+    aqi_display = f"{latest.aqi_pm25:.0f}" if pd.notna(latest.aqi_pm25) else "--"
 
     st.caption(f"Last AirLink update: {last_obs} | Window: {st.session_state.hours}h")
 
     top_cols = st.columns(4)
-    info_card("Outside Temp (F)", f"{latest.temp_f:.1f}" if pd.notna(latest.temp_f) else "--", "from AirLink", color="#1d2432")
-    info_card("Heat Index (F)", f"{latest.heat_index_f:.1f}" if pd.notna(latest.heat_index_f) else "--", "AirLink", color="#1d2432")
-    info_card("Humidity (%)", f"{latest.hum:.0f}" if pd.notna(latest.hum) else "--", "AirLink", color="#1d2432")
+    with top_cols[0]:
+        info_card("Outside Temp (F)", f"{latest.temp_f:.1f}" if pd.notna(latest.temp_f) else "--", "from AirLink", color="#1d2432")
+    with top_cols[1]:
+        info_card("Heat Index (F)", f"{latest.heat_index_f:.1f}" if pd.notna(latest.heat_index_f) else "--", "AirLink", color="#1d2432")
+    with top_cols[2]:
+        info_card("Humidity (%)", f"{latest.hum:.0f}" if pd.notna(latest.hum) else "--", "AirLink", color="#1d2432")
     with top_cols[3]:
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
         st.markdown(
-            f"<span class='chip' style='background:{aqi_col}; color:white;'>AQI {latest.aqi_pm25:.0f if pd.notna(latest.aqi_pm25) else '--'} | {aqi_category(latest.aqi_pm25)}</span>",
+            f"<span class='chip' style='background:{aqi_col}; color:white;'>AQI {aqi_display} | {aqi_category(latest.aqi_pm25)}</span>",
             unsafe_allow_html=True,
         )
 
