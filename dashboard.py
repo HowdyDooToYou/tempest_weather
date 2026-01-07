@@ -1,5 +1,7 @@
 import sqlite3
 import json
+import subprocess
+import time
 from pathlib import Path
 
 import altair as alt
@@ -10,6 +12,11 @@ import streamlit.components.v1 as components
 DB_PATH = "data/tempest.db"
 TEMPEST_STATION_ID = 475329
 TEMPEST_HUB_ID = 475327
+
+PING_TARGETS = {
+    "AirLink": "192.168.1.19",
+    "Tempest Hub": "192.168.1.26",
+}
 
 st.set_page_config(
     page_title="Weather & Air Quality Dashboard",
@@ -22,6 +29,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    html { font-size: 110%; }
     body { background: #0f1115; }
     .main { background: #0f1115; }
     .card {
@@ -111,6 +119,13 @@ st.markdown(
         .block-container { padding: 0.6rem 0.8rem; }
         [data-baseweb="tab-list"] { gap: 6px; }
     }
+    @media (max-width: 700px) {
+        html { font-size: 100%; }
+        .ingest-shell { padding: 12px; }
+        .ingest-row { grid-template-columns: 1fr; }
+        .ingest-latency { text-align: left; }
+        .compass-wrap { width: 280px; height: 280px; }
+    }
     /* Hero glow */
     .hero-glow {
         position: relative;
@@ -183,6 +198,7 @@ st.markdown(
     .ingest-chip.ok { color: #7be7d9; }
     .ingest-chip.warn { color: #ffd166; }
     .ingest-chip.offline { color: #ff7b7b; }
+    .ingest-chip.standby { color: #9aa4b5; }
     .ingest-pill {
         padding: 2px 6px;
         border-radius: 999px;
@@ -195,6 +211,57 @@ st.markdown(
     .ingest-pill.ok { color: #7be7d9; border-color: rgba(123,231,217,0.4); }
     .ingest-pill.warn { color: #ffd166; border-color: rgba(255,209,102,0.4); }
     .ingest-pill.offline { color: #ff7b7b; border-color: rgba(255,123,123,0.4); }
+    .ingest-pill.standby { color: #9aa4b5; border-color: rgba(154,164,181,0.4); }
+    .ingest-help {
+        margin-top: 6px;
+        color: #9aa4b5;
+        font-size: 0.78rem;
+    }
+    .conn-bubble {
+        position: fixed;
+        top: 92px;
+        right: 28px;
+        z-index: 50;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(15, 19, 26, 0.9);
+        border: 1px solid #1c2432;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+        color: #cfd6e5;
+        font-size: 0.78rem;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+    }
+    .conn-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        box-shadow: 0 0 10px currentColor;
+    }
+    .conn-dot.ok { color: #7be7d9; }
+    .conn-dot.warn { color: #ffd166; }
+    .conn-dot.offline { color: #ff7b7b; }
+    .conn-dot.standby { color: #9aa4b5; }
+    .ping-toast {
+        margin: 6px 0 2px 0;
+        font-size: 0.82rem;
+        color: #cfd6e5;
+        opacity: 0;
+        animation: pingFade 6s ease-in-out forwards;
+    }
+    @keyframes pingFade {
+        0% { opacity: 0; transform: translateY(-2px); }
+        12% { opacity: 1; transform: translateY(0); }
+        70% { opacity: 1; }
+        100% { opacity: 0; transform: translateY(-2px); }
+    }
+    .ping-btn {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.45rem;
+    }
     .ingest-details {
         margin-top: 8px;
         display: flex;
@@ -427,10 +494,56 @@ def compute_pm25_aqi(pm_value):
     pm = float(pm_value) if pm_value is not None else None
     if pm is None or pd.isna(pm):
         return None
+    # EPA guidance: truncate/round PM2.5 to 0.1 for AQI calculations.
+    pm = round(pm, 1)
     for c_low, c_high, a_low, a_high in breakpoints:
         if c_low <= pm <= c_high:
             return (a_high - a_low) / (c_high - c_low) * (pm - c_low) + a_low
     return 500.0
+
+
+def backfill_aqi_columns():
+    """Ensure AQI columns exist and are populated using corrected rounding."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(airlink_obs)")
+    cols = {row[1] for row in cur.fetchall()}
+    desired = ["aqi_pm25", "aqi_pm25_last_1_hour", "aqi_pm25_nowcast"]
+    missing = [c for c in desired if c not in cols]
+    for col in missing:
+        cur.execute(f"ALTER TABLE airlink_obs ADD COLUMN {col} REAL")
+    conn.commit()
+
+    where_clause = " OR ".join([f\"{c} IS NULL\" for c in desired])
+    query = f\"\"\"\nSELECT rowid, pm_2p5, pm_2p5_last_1_hour, pm_2p5_nowcast\nFROM airlink_obs\nWHERE {where_clause}\n\"\"\"
+    df = pd.read_sql_query(query, conn)
+    if not df.empty:
+        df["aqi_pm25"] = df["pm_2p5"].apply(compute_pm25_aqi)
+        df["aqi_pm25_last_1_hour"] = df["pm_2p5_last_1_hour"].apply(compute_pm25_aqi)
+        df["aqi_pm25_nowcast"] = df["pm_2p5_nowcast"].apply(compute_pm25_aqi)
+        rows = list(
+            zip(
+                df["aqi_pm25"],
+                df["aqi_pm25_last_1_hour"],
+                df["aqi_pm25_nowcast"],
+                df["rowid"],
+            )
+        )
+        cur.executemany(
+            "UPDATE airlink_obs SET aqi_pm25=?, aqi_pm25_last_1_hour=?, aqi_pm25_nowcast=? WHERE rowid=?",
+            rows,
+        )
+        conn.commit()
+    conn.close()
+    return len(df)
+
+
+if "aqi_backfill_done" not in st.session_state:
+    try:
+        backfill_aqi_columns()
+    except Exception:
+        pass
+    st.session_state.aqi_backfill_done = True
 
 
 def aqi_category(aqi):
@@ -710,67 +823,145 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
     if not sources:
         return
 
-    badge_text = f"{total_recent} evt/hr"
-    if avg_latency_text:
-        badge_text = f"{badge_text} • {avg_latency_text} avg lag"
+    if "ping_results" not in st.session_state:
+        st.session_state.ping_results = {}
+    if "conn_expanded" not in st.session_state:
+        st.session_state.conn_expanded = False
 
-    rows_html = "".join(
-        f"""<div class="ingest-row">
-    <div class="ingest-meta">
-        <span class="ingest-dot" style="background:{src['colors'][0]};"></span>
-        <div>
-            <div class="ingest-name">{src['name']}</div>
-            <div class="ingest-sub">{src['latency_text']} • {src['load_text']}</div>
-        </div>
-    </div>
-    <div class="ingest-bar">
-        <div class="ingest-fill" style="--fill:{src['fill']:.3f}; --fill-start:{src['colors'][0]}; --fill-end:{src['colors'][1]};"></div>
-        <div class="ingest-pulse" style="--fill:{src['fill']:.3f}; --pulse-speed:{src['pulse_speed']:.2f}s; background: radial-gradient(circle at 20% 50%, {src['colors'][1]} 0%, transparent 65%);"></div>
-        <div class="ingest-sink">Data</div>
-    </div>
-    <div class="ingest-latency">Last packet {src['last_seen']}</div>
+    by_name = {s["name"]: s for s in sources}
+    station_recent = by_name.get("Tempest Station", {}).get("recent_count", 0) or 0
+
+    def source_status(src):
+        latency = src["latency_minutes"]
+        if latency is None:
+            return "offline"
+        if src["name"] == "Tempest Hub":
+            if station_recent > 0 and src["recent_count"] <= 0:
+                return "standby"
+            return "ok" if latency <= 60 else "warn"
+        if src["recent_count"] <= 0:
+            return "offline"
+        return "ok" if latency <= 10 else "warn"
+
+    status_labels = {
+        "ok": "Live",
+        "warn": "Delayed",
+        "offline": "Offline",
+        "standby": "Standby",
+    }
+    statuses = [
+        {
+            "name": s["name"],
+            "status": source_status(s),
+            "colors": s["colors"],
+            "latency_text": s["latency_text"],
+            "load_text": s["load_text"],
+            "last_seen": s["last_seen"],
+        }
+        for s in sources
+    ]
+    overall = "ok" if all(s["status"] in ("ok", "standby") for s in statuses) else "warn"
+    header_title = "Signals healthy" if overall == "ok" else "Signals need attention"
+    badge_text = f"{total_recent} events/hr" if total_recent else "No recent events"
+    if avg_latency_text:
+        badge_text = f"{badge_text} • avg data age {avg_latency_text}"
+
+    summary_html = "".join(
+        f"""<div class="ingest-chip {s['status']}">
+  <span class="dot" style="background:{s['colors'][0]};"></span>
+  <span>{s['name']}</span>
+  <span class="ingest-pill {s['status']}">{status_labels[s['status']]}</span>
 </div>"""
-        for src in sources
+        for s in statuses
     )
 
-    rows_html = "".join(
-        f"""<div class="ingest-row">
-    <div class="ingest-meta">
-        <span class="ingest-dot" style="background:{src['colors'][0]};"></span>
-        <div>
-            <div class="ingest-name">{src['name']}</div>
-            <div class="ingest-sub">{src['latency_text']} • {src['load_text']}</div>
-        </div>
-    </div>
-    <div class="ingest-bar">
-        <div class="ingest-fill" style="--fill:{src['fill']:.3f}; --fill-start:{src['colors'][0]}; --fill-end:{src['colors'][1]};"></div>
-        <div class="ingest-pulse" style="--fill:{src['fill']:.3f}; --pulse-speed:{src['pulse_speed']:.2f}s; background: radial-gradient(circle at 20% 50%, {src['colors'][1]} 0%, transparent 65%);"></div>
-        <div class="ingest-sink">Data</div>
-    </div>
-    <div class="ingest-latency">Last packet {src['last_seen']}</div>
+    indicator_html = "".join(
+        f"""<span class="conn-dot {s['status']}" title="{s['name']}: {status_labels[s['status']]}"></span>"""
+        for s in statuses
+    )
+
+    details_html = "".join(
+        f"""<div class="ingest-detail-row">
+  <div class="meta">
+    <span class="dot" style="background:{s['colors'][0]};"></span>
+    <span>{s['name']}</span>
+    <span class="ingest-pill {s['status']}">{status_labels[s['status']]}</span>
+  </div>
+  <div class="detail">{s['latency_text']} - {s['load_text']}</div>
+  <div class="last">{s['last_seen']}</div>
 </div>"""
-        for src in sources
+        for s in statuses
     )
 
     st.markdown(
-        f"""
-<div class="ingest-shell hero-glow">
-  <div class="ingest-header-row">
-    <div>
-      <div class="ingest-eyebrow">Live ingest</div>
-      <div class="ingest-summary">Progress pulses pull in from AirLink, Tempest Station, and Hub to mimic the pipeline latency.</div>
-    </div>
-    <div class="ingest-badge">{badge_text}</div>
-  </div>
-  <div class="ingest-grid">
-    {rows_html}
-  </div>
-</div>
-        """,
+        f"""<div class="conn-bubble">{indicator_html} Connection</div>""",
         unsafe_allow_html=True,
     )
 
+    with st.sidebar.expander("Connection details", expanded=st.session_state.conn_expanded):
+        st.markdown(
+            f"""
+<div class="ingest-shell hero-glow">
+  <div class="ingest-header-row">
+    <div>
+      <div class="ingest-eyebrow">Connection status</div>
+      <div class="ingest-summary">{header_title}</div>
+      <div class="ingest-help">Avg data age is the mean time since last packets across sources.</div>
+      <div class="ingest-status-row">
+        {summary_html}
+      </div>
+    </div>
+    <div class="ingest-badge">{badge_text} <span title="Avg data age reflects how long ago each source last reported.">(i)</span></div>
+  </div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
 
+        def ping_device(host):
+            if not host:
+                return False, "Ping target not configured"
+            try:
+                result = subprocess.run(
+                    ["ping", "-n", "1", "-w", "1000", host],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                ok = result.returncode == 0
+                return ok, "Reachable" if ok else "No response"
+            except Exception:
+                return False, "Ping failed"
+
+        for src in statuses:
+            row_cols = st.columns([1.4, 1.6, 1.2, 0.7])
+            row_cols[0].markdown(
+                f"**{src['name']}**  \n{status_labels[src['status']]}"
+            )
+            row_cols[1].markdown(f"{src['latency_text']} · {src['load_text']}")
+            row_cols[2].markdown(src["last_seen"])
+            target = PING_TARGETS.get(src["name"])
+            if not target and src["name"] == "Tempest Station":
+                target = PING_TARGETS.get("Tempest Hub")
+            ping_disabled = not target
+            if row_cols[3].button(
+                "ping",
+                key=f"ping_{src['name']}",
+                disabled=ping_disabled,
+            ):
+                st.session_state.conn_expanded = True
+                ok, msg = ping_device(target)
+                st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
+            result = st.session_state.ping_results.get(src["name"])
+            if result:
+                ok, msg, ts = result
+                if time.time() - ts < 6:
+                    st.markdown(
+                        f"<div class='ping-toast'>{'✅' if ok else '⚠️'} {src['name']}: {msg}</div>",
+                        unsafe_allow_html=True,
+                    )
+            elif ping_disabled:
+                st.markdown(f"ℹ️ {src['name']}: set ping target in `PING_TARGETS` to enable.")
 def daily_extremes(df, time_col, value_cols):
     if df is None or df.empty:
         return {}
@@ -1327,7 +1518,11 @@ for label, activity, colors in [
         "recent_count": event_rate,
     })
 
-latency_values = [s["latency_minutes"] for s in ingest_sources if s["latency_minutes"] is not None]
+latency_values = [
+    s["latency_minutes"]
+    for s in ingest_sources
+    if s["latency_minutes"] is not None and s["name"] != "Tempest Hub"
+]
 avg_latency_minutes = sum(latency_values) / len(latency_values) if latency_values else None
 avg_latency_text = latency_label(avg_latency_minutes) if avg_latency_minutes is not None else None
 total_recent = sum(s["recent_count"] for s in ingest_sources if s["recent_count"] is not None)
