@@ -155,6 +155,92 @@ st.markdown(
             #0d1016;
         box-shadow: 0 14px 40px rgba(0,0,0,0.38);
     }
+    .ingest-status-row {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    .ingest-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: #101722;
+        border: 1px solid #1c2432;
+        color: #e7ecf3;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+    .ingest-chip .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        box-shadow: 0 0 10px currentColor;
+    }
+    .ingest-chip.ok { color: #7be7d9; }
+    .ingest-chip.warn { color: #ffd166; }
+    .ingest-chip.offline { color: #ff7b7b; }
+    .ingest-pill {
+        padding: 2px 6px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        border: 1px solid rgba(255,255,255,0.12);
+        color: #cfd6e5;
+    }
+    .ingest-pill.ok { color: #7be7d9; border-color: rgba(123,231,217,0.4); }
+    .ingest-pill.warn { color: #ffd166; border-color: rgba(255,209,102,0.4); }
+    .ingest-pill.offline { color: #ff7b7b; border-color: rgba(255,123,123,0.4); }
+    .ingest-details {
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .ingest-detail-row {
+        display: grid;
+        grid-template-columns: 1.2fr 1.4fr 1fr;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid #1b2332;
+        background: #0f1520;
+    }
+    .ingest-detail-row .meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        color: #e7ecf3;
+    }
+    .ingest-detail-row .meta .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        box-shadow: 0 0 10px currentColor;
+    }
+    .ingest-detail-row .detail {
+        color: #9aa4b5;
+        font-size: 0.85rem;
+    }
+    .ingest-detail-row .last {
+        text-align: right;
+        color: #9aa4b5;
+        font-size: 0.82rem;
+    }
+    @media (max-width: 960px) {
+        .ingest-detail-row {
+            grid-template-columns: 1fr;
+        }
+        .ingest-detail-row .last {
+            text-align: left;
+        }
+    }
     .ingest-header-row {
         display: flex;
         justify-content: space-between;
