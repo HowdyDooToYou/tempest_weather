@@ -217,34 +217,6 @@ st.markdown(
         color: #9aa4b5;
         font-size: 0.78rem;
     }
-    .conn-bubble {
-        position: fixed;
-        top: 92px;
-        right: 28px;
-        z-index: 50;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: rgba(15, 19, 26, 0.9);
-        border: 1px solid #1c2432;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.45);
-        color: #cfd6e5;
-        font-size: 0.78rem;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
-    }
-    .conn-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        box-shadow: 0 0 10px currentColor;
-    }
-    .conn-dot.ok { color: #7be7d9; }
-    .conn-dot.warn { color: #ffd166; }
-    .conn-dot.offline { color: #ff7b7b; }
-    .conn-dot.standby { color: #9aa4b5; }
     .ping-toast {
         margin: 6px 0 2px 0;
         font-size: 0.82rem;
@@ -261,6 +233,61 @@ st.markdown(
     .ping-btn {
         font-size: 0.7rem;
         padding: 0.15rem 0.45rem;
+    }
+    /* Connection details toggle (uiverse-inspired) */
+    .conn-toggle {
+        --toggle-w: 115px;
+        --toggle-h: 55px;
+        --toggle-pad: 6px;
+        --toggle-knob: 42px;
+    }
+    .conn-toggle [data-testid="stCheckbox"] label {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-right: calc(var(--toggle-w) + 12px);
+        min-height: var(--toggle-h);
+        cursor: pointer;
+    }
+    .conn-toggle [data-testid="stCheckbox"] label > div {
+        display: none;
+    }
+    .conn-toggle [data-testid="stCheckbox"] input {
+        position: absolute;
+        opacity: 0;
+        appearance: none;
+    }
+    .conn-toggle [data-testid="stCheckbox"] label::before {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: var(--toggle-w);
+        height: var(--toggle-h);
+        border-radius: 165px;
+        background: #252532;
+        box-shadow: inset 0px 5px 10px 0px #16151c, 0px 3px 6px -2px #403f4e;
+        border: 1px solid #32303e;
+    }
+    .conn-toggle [data-testid="stCheckbox"] label::after {
+        content: "";
+        position: absolute;
+        right: calc(var(--toggle-w) - var(--toggle-knob) - var(--toggle-pad));
+        top: 50%;
+        transform: translateY(-50%);
+        width: var(--toggle-knob);
+        height: var(--toggle-knob);
+        border-radius: 100%;
+        background: linear-gradient(#3b3a4e, #272733);
+        box-shadow: inset 0px 5px 4px 0px #424151, 0px 4px 15px 0px #0f0e17;
+        transition: right 0.3s ease-in;
+        z-index: 2;
+    }
+    .conn-toggle [data-testid="stCheckbox"] label:has(input:checked)::after {
+        right: var(--toggle-pad);
     }
     .ingest-details {
         margin-top: 8px;
@@ -514,8 +541,12 @@ def backfill_aqi_columns():
         cur.execute(f"ALTER TABLE airlink_obs ADD COLUMN {col} REAL")
     conn.commit()
 
-    where_clause = " OR ".join([f\"{c} IS NULL\" for c in desired])
-    query = f\"\"\"\nSELECT rowid, pm_2p5, pm_2p5_last_1_hour, pm_2p5_nowcast\nFROM airlink_obs\nWHERE {where_clause}\n\"\"\"
+    where_clause = " OR ".join([f"{c} IS NULL" for c in desired])
+    query = f"""
+SELECT rowid, pm_2p5, pm_2p5_last_1_hour, pm_2p5_nowcast
+FROM airlink_obs
+WHERE {where_clause}
+"""
     df = pd.read_sql_query(query, conn)
     if not df.empty:
         df["aqi_pm25"] = df["pm_2p5"].apply(compute_pm25_aqi)
@@ -864,7 +895,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
     header_title = "Signals healthy" if overall == "ok" else "Signals need attention"
     badge_text = f"{total_recent} events/hr" if total_recent else "No recent events"
     if avg_latency_text:
-        badge_text = f"{badge_text} • avg data age {avg_latency_text}"
+        badge_text = f"{badge_text} - avg data age {avg_latency_text}"
 
     summary_html = "".join(
         f"""<div class="ingest-chip {s['status']}">
@@ -875,10 +906,6 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
         for s in statuses
     )
 
-    indicator_html = "".join(
-        f"""<span class="conn-dot {s['status']}" title="{s['name']}: {status_labels[s['status']]}"></span>"""
-        for s in statuses
-    )
 
     details_html = "".join(
         f"""<div class="ingest-detail-row">
@@ -893,14 +920,22 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
         for s in statuses
     )
 
-    st.markdown(
-        f"""<div class="conn-bubble">{indicator_html} Connection</div>""",
-        unsafe_allow_html=True,
-    )
 
-    with st.sidebar.expander("Connection details", expanded=st.session_state.conn_expanded):
-        st.markdown(
-            f"""
+    st.sidebar.markdown('<div class="conn-toggle">', unsafe_allow_html=True)
+    conn_toggle = st.sidebar.checkbox(
+        "Connection details",
+        value=st.session_state.conn_expanded,
+        key="conn_details_toggle",
+    )
+    st.sidebar.markdown("</div>", unsafe_allow_html=True)
+    st.session_state.conn_expanded = conn_toggle
+
+    if st.session_state.conn_expanded:
+        with st.sidebar.container():
+            header_cols = st.columns([1.4, 0.8])
+            with header_cols[0]:
+                st.markdown(
+                    f"""
 <div class="ingest-shell hero-glow">
   <div class="ingest-header-row">
     <div>
@@ -911,57 +946,127 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
         {summary_html}
       </div>
     </div>
-    <div class="ingest-badge">{badge_text} <span title="Avg data age reflects how long ago each source last reported.">(i)</span></div>
   </div>
 </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        def ping_device(host):
-            if not host:
-                return False, "Ping target not configured"
-            try:
-                result = subprocess.run(
-                    ["ping", "-n", "1", "-w", "1000", host],
-                    capture_output=True,
-                    text=True,
-                    timeout=3,
+                    """,
+                    unsafe_allow_html=True,
                 )
-                ok = result.returncode == 0
-                return ok, "Reachable" if ok else "No response"
-            except Exception:
-                return False, "Ping failed"
+            with header_cols[1]:
+                st.markdown(
+                    f"<div class='ingest-badge'>{badge_text} <span title='Avg data age reflects how long ago each source last reported.'>(i)</span></div>",
+                    unsafe_allow_html=True,
+                )
+                egg_canvas_id = "connEggCanvas"
+                egg_js_path = Path("static/sprite_player.js")
+                egg_idle_path = Path("images/Skeleton_Spearman/Idle.png")
+                egg_html = ""
+                if egg_js_path.exists() and egg_idle_path.exists():
+                    import base64
 
-        for src in statuses:
-            row_cols = st.columns([1.4, 1.6, 1.2, 0.7])
-            row_cols[0].markdown(
-                f"**{src['name']}**  \n{status_labels[src['status']]}"
-            )
-            row_cols[1].markdown(f"{src['latency_text']} · {src['load_text']}")
-            row_cols[2].markdown(src["last_seen"])
-            target = PING_TARGETS.get(src["name"])
-            if not target and src["name"] == "Tempest Station":
-                target = PING_TARGETS.get("Tempest Hub")
-            ping_disabled = not target
-            if row_cols[3].button(
-                "ping",
-                key=f"ping_{src['name']}",
-                disabled=ping_disabled,
-            ):
-                st.session_state.conn_expanded = True
-                ok, msg = ping_device(target)
-                st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
-            result = st.session_state.ping_results.get(src["name"])
-            if result:
-                ok, msg, ts = result
-                if time.time() - ts < 6:
-                    st.markdown(
-                        f"<div class='ping-toast'>{'✅' if ok else '⚠️'} {src['name']}: {msg}</div>",
-                        unsafe_allow_html=True,
+                    sprite_js = egg_js_path.read_text()
+                    idle_uri = "data:image/png;base64," + base64.b64encode(egg_idle_path.read_bytes()).decode("ascii")
+                    egg_characters = {
+                        "spearman": {
+                            "strips": {
+                                "idle": {"uri": idle_uri, "frames": 7},
+                            },
+                            "effect": "none",
+                            "sequences": {"idle": "idle"},
+                        }
+                    }
+                    egg_payload = {
+                        "windMph": 0,
+                        "windDirDeg": 120,
+                        "lightningCount": 0,
+                        "lightningNear": False,
+                        "ingestRate": 0,
+                    }
+                    egg_html = f"""
+<style>
+.conn-egg-inline {{
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #9fb2cc;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 6px;
+}}
+.conn-egg-inline canvas {{
+  width: 86px;
+  height: 86px;
+  display: block;
+}}
+</style>
+<div class="conn-egg-inline" id="connEggWrap">
+  <div>Standby crew</div>
+  <canvas id="{egg_canvas_id}" width="96" height="96"></canvas>
+</div>
+<script>{sprite_js}</script>
+<script>
+(function() {{
+  const payload = {json.dumps(egg_payload)};
+  const charactersData = {json.dumps(egg_characters)};
+  const canvas = document.getElementById("{egg_canvas_id}");
+  if (!canvas || !window.SpriteSheetPlayer) return;
+  const player = window.SpriteSheetPlayer.mount(canvas, null, payload, charactersData);
+  const wrap = document.getElementById("connEggWrap");
+  if (wrap && player && player.triggerEasterEgg) {{
+    wrap.addEventListener("mouseenter", () => player.triggerEasterEgg());
+  }}
+}})();
+</script>
+"""
+                    components.html(egg_html, height=110)
+
+            def ping_device(host):
+                if not host:
+                    return False, "Ping target not configured"
+                try:
+                    result = subprocess.run(
+                        ["ping", "-n", "1", "-w", "1000", host],
+                        capture_output=True,
+                        text=True,
+                        timeout=3,
                     )
-            elif ping_disabled:
-                st.markdown(f"ℹ️ {src['name']}: set ping target in `PING_TARGETS` to enable.")
+                    ok = result.returncode == 0
+                    return ok, "Reachable" if ok else "No response"
+                except Exception:
+                    return False, "Ping failed"
+
+            for src in statuses:
+                row_cols = st.columns([1.4, 1.6, 1.2, 0.7])
+                row_cols[0].markdown(
+                    f"**{src['name']}**  \n{status_labels[src['status']]}"
+                )
+                row_cols[1].markdown(f"{src['latency_text']} - {src['load_text']}")
+                row_cols[2].markdown(src["last_seen"])
+                target = PING_TARGETS.get(src["name"])
+                if not target and src["name"] == "Tempest Station":
+                    target = PING_TARGETS.get("Tempest Hub")
+                ping_disabled = not target
+                if row_cols[3].button(
+                    "ping",
+                    key=f"ping_{src['name']}",
+                    disabled=ping_disabled,
+                ):
+                    st.session_state.conn_expanded = True
+                    ok, msg = ping_device(target)
+                    st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
+                result = st.session_state.ping_results.get(src["name"])
+                if result:
+                    ok, msg, ts = result
+                    if time.time() - ts < 6:
+                        status_label = "OK" if ok else "WARN"
+                        st.markdown(
+                            f"<div class='ping-toast'>{status_label}: {src['name']} - {msg}</div>",
+                            unsafe_allow_html=True,
+                        )
+                elif ping_disabled:
+                    st.markdown(f"INFO: {src['name']}: set ping target in `PING_TARGETS` to enable.")
+
 def daily_extremes(df, time_col, value_cols):
     if df is None or df.empty:
         return {}
@@ -1532,7 +1637,7 @@ render_ingest_banner(ingest_sources, total_recent, avg_latency_text=avg_latency_
 # ------------------------
 # Tabs layout: Overview, Air, Wind, Data Quality, Raw
 # ------------------------
-tabs = st.tabs(["Overview", "Air Quality", "Wind", "Data Quality", "Raw"])
+tabs = st.tabs(["Overview", "Air Quality", "Wind", "Data Quality", "Raw", "Sprite Lab"])
 
 # Overview tab
 with tabs[0]:
@@ -1860,6 +1965,11 @@ with tabs[2]:
                   window.__compassPlayer.toggleCharacter();
                 }}
               }});
+              el.addEventListener("mouseenter", () => {{
+                if (window.__compassPlayer && window.__compassPlayer.triggerEasterEgg) {{
+                  window.__compassPlayer.triggerEasterEgg();
+                }}
+              }});
             }}
           }})();
         </script>
@@ -1874,6 +1984,47 @@ with tabs[2]:
             stat_row_2 = st.columns(2)
             stat_row_2[0].metric("Avg Wind (window)", f"{tempest['wind_speed_mph'].mean():.1f}")
             stat_row_2[1].metric("Lightning strikes (window)", lightning_strikes_window)
+
+        wind_speed_now = float(tempest_latest.wind_speed_mph) if tempest_latest is not None else 0.0
+        wind_speed_max = float(tempest["wind_speed_mph"].max()) if not tempest.empty else max(wind_speed_now, 1.0)
+        climber_payload = {
+            "windMph": wind_speed_now,
+            "windMax": wind_speed_max,
+        }
+        climber_html = f"""
+        <style>
+        .wind-climber {{
+          margin: 8px 0 6px 0;
+          padding: 8px 12px;
+          border-radius: 14px;
+          border: 1px solid rgba(120,180,255,0.22);
+          background: radial-gradient(circle at 20% 20%, rgba(42,84,142,0.2), rgba(10,12,16,0.95));
+        }}
+        .wind-climber canvas {{
+          width: 100%;
+          height: 120px;
+          display: block;
+        }}
+        </style>
+        <div class="wind-climber">
+          <canvas id="windClimber" width="920" height="120"></canvas>
+        </div>
+        <script>{sprite_js}</script>
+        <script>
+        (function() {{
+          const payload = {json.dumps(climber_payload)};
+          const charactersData = {json.dumps(characters_data)};
+          const canvas = document.getElementById("windClimber");
+          if (!canvas || !window.SpriteSheetPlayer) return;
+          if (window.__windClimber && window.__windClimber.updatePayload) {{
+            window.__windClimber.updatePayload(payload);
+          }} else {{
+            window.__windClimber = window.SpriteSheetPlayer.mountClimber(canvas, charactersData, payload);
+          }}
+        }})();
+        </script>
+        """
+        components.html(climber_html, height=150)
 
         wind_long = tempest[["time", "wind_speed_mph"]].rename(columns={"wind_speed_mph": "value"})
         wind_long["metric"] = "Wind Speed (mph)"
@@ -1983,3 +2134,1029 @@ with tabs[4]:
         )
     else:
         st.info("No raw events available.")
+
+# Sprite Lab tab
+with tabs[5]:
+    st.subheader("Sprite Lab")
+    st.markdown("Explore character actions and frames using the sprite manifest.")
+    sprite_js = Path("static/sprite_player.js").read_text() if Path("static/sprite_player.js").exists() else ""
+    sprite_manifest = Path("static/sprite_manifest.json").read_text() if Path("static/sprite_manifest.json").exists() else "{}"
+    sprite_images = {}
+    try:
+        manifest_data = json.loads(sprite_manifest)
+        if isinstance(manifest_data, dict):
+            import base64
+            for sheet in manifest_data.get("sheets", []):
+                sheet_name = sheet.get("name")
+                sheet_path = sheet.get("path")
+                if not sheet_name or not sheet_path:
+                    continue
+                img_path = Path(sheet_path)
+                if not img_path.exists():
+                    continue
+                encoded = base64.b64encode(img_path.read_bytes()).decode("ascii")
+                sprite_images[sheet_name] = f"data:image/png;base64,{encoded}"
+    except Exception:
+        sprite_images = {}
+    sprite_lab_html = f"""
+    <style>
+    .sprite-lab {{
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid #1f2635;
+      background: radial-gradient(circle at 20% 10%, rgba(97,165,255,0.12), transparent 38%), #0d1119;
+      color: #d8deed;
+    }}
+    .sprite-lab .row {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }}
+    .sprite-lab label {{
+      font-size: 0.78rem;
+      color: #9aa4b5;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }}
+    .sprite-lab select,
+    .sprite-lab input[type="range"],
+    .sprite-lab button {{
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #263041;
+      background: #121824;
+      color: #e7ecf3;
+      padding: 6px 8px;
+      font-size: 0.9rem;
+    }}
+    .sprite-lab button {{
+      cursor: pointer;
+      background: #1a2332;
+    }}
+    .sprite-lab .canvas-wrap {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      border-radius: 12px;
+      background: #0b0f16;
+      border: 1px solid #1f2635;
+    }}
+    .sprite-lab .status {{
+      font-size: 0.8rem;
+      color: #9aa4b5;
+    }}
+    .sprite-lab .input {{
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #263041;
+      background: #121824;
+      color: #e7ecf3;
+      padding: 6px 8px;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+    }}
+    .sprite-lab textarea.input {{
+      min-height: 80px;
+      resize: vertical;
+    }}
+    .sprite-lab .grid-2 {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }}
+    .sprite-lab .log {{
+      max-height: 180px;
+      overflow: auto;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid #1f2635;
+      background: #0b0f16;
+      font-size: 0.78rem;
+      color: #cfd6e5;
+      white-space: pre-wrap;
+    }}
+    .sprite-lab .toggle {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #9aa4b5;
+      font-size: 0.82rem;
+    }}
+    .sprite-lab .toggle input {{
+      accent-color: #7be7d9;
+    }}
+    .sprite-lab .icon-button {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 8px;
+    }}
+    .sprite-lab .icon-button svg {{
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }}
+    .sprite-lab .thumbs {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+      gap: 8px;
+      padding: 6px;
+      border-radius: 12px;
+      border: 1px solid #1f2635;
+      background: #0b0f16;
+    }}
+    .sprite-lab .thumb {{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: rgba(18,24,36,0.8);
+      cursor: pointer;
+    }}
+    .sprite-lab .thumb.active {{
+      border-color: rgba(123,231,217,0.8);
+      box-shadow: 0 0 12px rgba(123,231,217,0.2);
+    }}
+    .sprite-lab .thumb canvas {{
+      width: 48px;
+      height: 48px;
+      image-rendering: pixelated;
+    }}
+    .sprite-lab .phase-list {{
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid #1f2635;
+      background: #0b0f16;
+      font-size: 0.78rem;
+      color: #cfd6e5;
+    }}
+    .sprite-lab .phase-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: #121824;
+    }}
+    .sprite-lab .phase-row button {{
+      width: auto;
+      padding: 4px 8px;
+    }}
+    .sprite-lab .phase-row .meta {{
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }}
+    .sprite-lab .player-row {{
+      display: grid;
+      grid-template-columns: minmax(220px, 320px) 1fr;
+      gap: 12px;
+      align-items: stretch;
+    }}
+    .sprite-lab .player-panel {{
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid #1f2635;
+      background: #0b0f16;
+    }}
+    </style>
+    <div class="sprite-lab">
+      <div class="player-row">
+        <div class="player-panel">
+          <label>Preview</label>
+          <div class="canvas-wrap" style="margin-top:6px;">
+            <canvas id="spriteLabCanvas" width="256" height="256"></canvas>
+          </div>
+          <div class="status" id="spriteCurrentFrame">Frame --</div>
+        </div>
+        <div class="player-panel">
+          <label>Status</label>
+          <div class="status" id="spriteStatus">Loading manifest...</div>
+          <div class="status" id="spriteSheetInfo"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Character</label>
+          <select id="spriteCharSelect"></select>
+        </div>
+        <div>
+          <label>Action</label>
+          <select id="spriteActionSelect"></select>
+        </div>
+        <div>
+          <label>FPS</label>
+          <input id="spriteFps" type="range" min="1" max="20" value="8" />
+          <div class="status" id="spriteFpsValue">8 fps</div>
+        </div>
+        <div>
+          <label>Playback</label>
+          <button id="spritePlayToggle">Pause</button>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Action Filter</label>
+          <input id="spriteActionFilter" class="input" type="text" placeholder="Search name or tags" />
+          <div class="status" id="spriteActionCount"></div>
+        </div>
+        <div>
+          <label>Clone From</label>
+          <select id="spriteCloneSelect"></select>
+        </div>
+        <div>
+          <label>Clone</label>
+          <button id="spriteCloneAction">Clone Labels</button>
+        </div>
+        <div>
+          <label>Confidence</label>
+          <input id="spriteConfidence" type="range" min="0" max="2" value="0" />
+          <div class="status" id="spriteConfidenceValue">Draft</div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Frame</label>
+          <input id="spriteFrame" type="range" min="0" max="0" value="0" />
+          <div class="status" id="spriteFrameValue">Frame 0</div>
+        </div>
+        <div>
+          <label>Strip Preview</label>
+          <button id="spriteStripToggle">Play Strip</button>
+        </div>
+        <div>
+          <label>Phase Playback</label>
+          <button id="spritePhasePlayToggle">Play Phases</button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <label>Action Name</label>
+          <input id="spriteActionName" class="input" type="text" placeholder="e.g., Run Attack" />
+        </div>
+        <div>
+          <label>Tags</label>
+          <input id="spriteActionTags" class="input" type="text" placeholder="e.g., combat, fast, windy" />
+        </div>
+      </div>
+      <div>
+        <label>Description</label>
+        <textarea id="spriteActionDesc" class="input" placeholder="Notes about timing, intent, mood..."></textarea>
+      </div>
+      <div class="row">
+        <div>
+          <label>Phase Name</label>
+          <input id="spritePhaseName" class="input" type="text" placeholder="wind-up, impact, recover" />
+        </div>
+        <div>
+          <label>Start Frame</label>
+          <input id="spritePhaseStart" class="input" type="number" min="0" value="0" />
+        </div>
+        <div>
+          <label>End Frame</label>
+          <input id="spritePhaseEnd" class="input" type="number" min="0" value="0" />
+        </div>
+        <div>
+          <label>Pause (sec)</label>
+          <input id="spritePhasePause" class="input" type="number" min="0" step="0.1" value="0" />
+        </div>
+        <div>
+          <label>Fade (sec)</label>
+          <input id="spritePhaseFade" class="input" type="number" min="0" step="0.1" value="0" />
+        </div>
+        <div>
+          <label>Phase Controls</label>
+          <button id="spritePhaseAdd">Add Phase</button>
+        </div>
+      </div>
+      <div>
+        <label>Phases</label>
+        <div class="phase-list" id="spritePhaseList">No phases yet.</div>
+      </div>
+      <div class="row">
+        <div>
+          <button id="spriteSaveAction">Save Label</button>
+        </div>
+        <div>
+          <button id="spriteDownloadLabels">Download JSON</button>
+        </div>
+        <div class="toggle">
+          <input id="spriteApplyAllFrames" type="checkbox" />
+          <label for="spriteApplyAllFrames">Apply to all frames</label>
+        </div>
+        <div>
+          <button id="spriteCopyLabels" class="icon-button" title="Copy JSON">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H10V7h9v14z"/>
+            </svg>
+            Copy
+          </button>
+        </div>
+        <div class="status" id="spriteSaveStatus"></div>
+      </div>
+      <div>
+        <label>Frame Thumbnails (click to jump)</label>
+        <div class="thumbs" id="spriteThumbs"></div>
+      </div>
+      <div>
+        <label>Saved Labels</label>
+        <div class="log" id="spriteLabelLog">No labels saved yet.</div>
+      </div>
+      <div>
+        <label>Debug Log</label>
+        <div class="log" id="spriteDebugLog">Ready.</div>
+      </div>
+    </div>
+    <script>{sprite_js}</script>
+    <script>
+      window.__spriteManifest = {sprite_manifest};
+      window.__spriteImages = {json.dumps(sprite_images)};
+    </script>
+    <script>
+      (function() {{
+        const statusEl = document.getElementById("spriteStatus");
+        const infoEl = document.getElementById("spriteSheetInfo");
+        const currentFrameEl = document.getElementById("spriteCurrentFrame");
+        const charSelect = document.getElementById("spriteCharSelect");
+        const actionSelect = document.getElementById("spriteActionSelect");
+        const actionFilter = document.getElementById("spriteActionFilter");
+        const actionCount = document.getElementById("spriteActionCount");
+        const cloneSelect = document.getElementById("spriteCloneSelect");
+        const cloneBtn = document.getElementById("spriteCloneAction");
+        const confidenceRange = document.getElementById("spriteConfidence");
+        const confidenceValue = document.getElementById("spriteConfidenceValue");
+        const fpsRange = document.getElementById("spriteFps");
+        const fpsValue = document.getElementById("spriteFpsValue");
+        const frameRange = document.getElementById("spriteFrame");
+        const frameValue = document.getElementById("spriteFrameValue");
+        const playToggle = document.getElementById("spritePlayToggle");
+        const stripToggle = document.getElementById("spriteStripToggle");
+        const phasePlayToggle = document.getElementById("spritePhasePlayToggle");
+        const canvas = document.getElementById("spriteLabCanvas");
+        const ctx = canvas.getContext("2d");
+        const nameInput = document.getElementById("spriteActionName");
+        const tagsInput = document.getElementById("spriteActionTags");
+        const descInput = document.getElementById("spriteActionDesc");
+        const phaseNameInput = document.getElementById("spritePhaseName");
+        const phaseStartInput = document.getElementById("spritePhaseStart");
+        const phaseEndInput = document.getElementById("spritePhaseEnd");
+        const phasePauseInput = document.getElementById("spritePhasePause");
+        const phaseFadeInput = document.getElementById("spritePhaseFade");
+        const phaseAddBtn = document.getElementById("spritePhaseAdd");
+        const phaseListEl = document.getElementById("spritePhaseList");
+        const saveBtn = document.getElementById("spriteSaveAction");
+        const downloadBtn = document.getElementById("spriteDownloadLabels");
+        const copyBtn = document.getElementById("spriteCopyLabels");
+        const applyAllFrames = document.getElementById("spriteApplyAllFrames");
+        const saveStatus = document.getElementById("spriteSaveStatus");
+        const labelLog = document.getElementById("spriteLabelLog");
+        const debugLog = document.getElementById("spriteDebugLog");
+        const thumbsEl = document.getElementById("spriteThumbs");
+
+        let manifest = null;
+        let imagesBySheet = {{}};
+        let playing = true;
+        let stripPreview = false;
+        let phasePlayback = false;
+        let sheet = null;
+        let frameIdx = 0;
+        let fps = 8;
+        let last = performance.now();
+        let phases = [];
+        let phaseState = null;
+
+        function setStatus(text) {{
+          statusEl.textContent = text;
+        }}
+
+        function logDebug(msg) {{
+          if (!debugLog) return;
+          const stamp = new Date().toLocaleTimeString();
+          debugLog.textContent = "[" + stamp + "] " + msg + "\\n" + debugLog.textContent;
+        }}
+
+        function getConfidenceLabel(value) {{
+          const labels = ["Draft", "Reviewed", "Final"];
+          return labels[value] || labels[0];
+        }}
+
+        function updateConfidenceLabel() {{
+          confidenceValue.textContent = getConfidenceLabel(Number(confidenceRange.value));
+        }}
+
+        function getLabelKey() {{
+          if (!sheet) return null;
+          return sheet.name;
+        }}
+
+        function loadLabels() {{
+          try {{
+            const raw = localStorage.getItem("spriteLabels");
+            if (raw) return JSON.parse(raw);
+          }} catch (e) {{
+            logDebug("localStorage read failed: " + e);
+          }}
+          if (!window.__spriteLabelCache) {{
+            window.__spriteLabelCache = {{}};
+          }}
+          return window.__spriteLabelCache;
+        }}
+
+        function saveLabels(data) {{
+          window.__spriteLabelCache = data;
+          try {{
+            localStorage.setItem("spriteLabels", JSON.stringify(data, null, 2));
+          }} catch (e) {{
+            logDebug("localStorage write failed: " + e);
+          }}
+        }}
+
+        function refreshLabelLog() {{
+          const labels = loadLabels();
+          const keys = Object.keys(labels);
+          if (!keys.length) {{
+            labelLog.textContent = "No labels saved yet.";
+            return;
+          }}
+          const lines = keys.sort().map((key) => {{
+            const entry = labels[key];
+            const conf = entry && Number.isFinite(entry.confidence) ? getConfidenceLabel(entry.confidence) : "Draft";
+            return key + " -> " + (entry.name || "Untitled") + " [" + conf + "]";
+          }});
+          labelLog.textContent = lines.join("\\n");
+        }}
+
+        function loadLabelFields() {{
+          const labels = loadLabels();
+          const key = getLabelKey();
+          const entry = key ? labels[key] : null;
+          nameInput.value = entry?.name || "";
+          tagsInput.value = entry?.tags || "";
+          descInput.value = entry?.description || "";
+          applyAllFrames.checked = Boolean(entry?.apply_all_frames);
+          confidenceRange.value = String(entry?.confidence ?? 0);
+          updateConfidenceLabel();
+          phases = Array.isArray(entry?.phases) ? entry.phases.slice() : [];
+          renderPhases();
+        }}
+
+        function listCharacters() {{
+          const names = new Set();
+          manifest.sheets.forEach((s) => {{
+            if (!s.name) return;
+            const parts = s.name.split("/");
+            if (parts.length >= 2 && parts[0].startsWith("Skeleton_")) {{
+              names.add(parts[0]);
+            }}
+          }});
+          return Array.from(names).sort();
+        }}
+
+        function listActions(charName) {{
+          const labels = loadLabels();
+          const term = (actionFilter.value || "").trim().toLowerCase();
+          return manifest.sheets.filter((s) => {{
+            if (!s.name || !s.name.startsWith(charName + "/")) return false;
+            if (!(s.type === "strip" || s.type === "single")) return false;
+            if (!term) return true;
+            const label = labels[s.name] || {{}};
+            const hay = [
+              s.name,
+              label.name || "",
+              label.tags || "",
+              label.description || "",
+            ].join(" ").toLowerCase();
+            return hay.includes(term);
+          }});
+        }}
+
+        function populateCharacters() {{
+          const chars = listCharacters();
+          charSelect.innerHTML = "";
+          chars.forEach((name) => {{
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name.replace("Skeleton_", "");
+            charSelect.appendChild(opt);
+          }});
+          if (chars.length) {{
+            charSelect.value = chars[0];
+          }}
+        }}
+
+        function populateActions() {{
+          const actions = listActions(charSelect.value);
+          actionSelect.innerHTML = "";
+          actions.forEach((s) => {{
+            const label = s.name.split("/")[1];
+            const opt = document.createElement("option");
+            opt.value = s.name;
+            opt.textContent = label;
+            actionSelect.appendChild(opt);
+          }});
+          if (actions.length) {{
+            actionSelect.value = actions[0].name;
+          }}
+          actionCount.textContent = actions.length ? (actions.length + " action(s)") : "No actions found";
+          populateCloneOptions(actions);
+        }}
+
+        function populateCloneOptions(actions) {{
+          const labels = loadLabels();
+          cloneSelect.innerHTML = "";
+          const emptyOpt = document.createElement("option");
+          emptyOpt.value = "";
+          emptyOpt.textContent = "Select source action";
+          cloneSelect.appendChild(emptyOpt);
+          actions.forEach((s) => {{
+            const opt = document.createElement("option");
+            const label = labels[s.name]?.name;
+            opt.value = s.name;
+            opt.textContent = label ? (s.name.split("/")[1] + " (" + label + ")") : s.name.split("/")[1];
+            cloneSelect.appendChild(opt);
+          }});
+        }}
+
+        function renderPhases() {{
+          phaseListEl.innerHTML = "";
+          if (!phases.length) {{
+            phaseListEl.textContent = "No phases yet.";
+            logDebug("Render phases: none");
+            return;
+          }}
+          logDebug("Render phases: " + phases.length);
+          phases.forEach((phase, idx) => {{
+            const row = document.createElement("div");
+            row.className = "phase-row";
+            const text = document.createElement("div");
+            text.className = "meta";
+            const line1 = document.createElement("div");
+            line1.textContent = phase.name + " (frames " + phase.start + "-" + phase.end + ")";
+            const pause = phase.pause_ms ? (phase.pause_ms / 1000).toFixed(1) : "0.0";
+            const fade = phase.fade_ms ? (phase.fade_ms / 1000).toFixed(1) : "0.0";
+            const line2 = document.createElement("div");
+            line2.textContent = "pause " + pause + "s, fade " + fade + "s";
+            text.appendChild(line1);
+            text.appendChild(line2);
+            const removeBtn = document.createElement("button");
+            removeBtn.textContent = "Remove";
+            removeBtn.addEventListener("click", () => {{
+              phases.splice(idx, 1);
+              renderPhases();
+            }});
+            row.appendChild(text);
+            row.appendChild(removeBtn);
+            phaseListEl.appendChild(row);
+          }});
+        }}
+
+        function renderThumbnails() {{
+          thumbsEl.innerHTML = "";
+          if (!sheet) return;
+          const count = sheet.frames || 1;
+          const size = 48;
+          const scale = size / (manifest.frame_size || 128);
+          for (let i = 0; i < count; i += 1) {{
+            const item = document.createElement("div");
+            item.className = "thumb";
+            item.dataset.index = String(i);
+            const canvasEl = document.createElement("canvas");
+            canvasEl.width = size;
+            canvasEl.height = size;
+            const c = canvasEl.getContext("2d");
+            const frameName = sheet.name + "/" + i;
+            window.SpriteSheetPlayer.drawFrameByName(
+              c,
+              imagesBySheet,
+              manifest,
+              frameName,
+              0,
+              0,
+              scale,
+              1
+            );
+            item.appendChild(canvasEl);
+            item.addEventListener("click", () => {{
+              frameIdx = i;
+              frameRange.value = String(frameIdx);
+              frameValue.textContent = "Frame " + frameIdx;
+              drawFrame(frameIdx);
+            }});
+            thumbsEl.appendChild(item);
+          }}
+          setActiveThumb(frameIdx);
+        }}
+
+        function setActiveThumb(index) {{
+          const nodes = thumbsEl.querySelectorAll(".thumb");
+          nodes.forEach((node) => {{
+            const idx = Number(node.dataset.index);
+            if (idx === index) {{
+              node.classList.add("active");
+            }} else {{
+              node.classList.remove("active");
+            }}
+          }});
+        }}
+
+        function setSheetByName(name) {{
+          sheet = manifest.sheets.find((s) => s.name === name) || null;
+          frameIdx = 0;
+          stripPreview = false;
+          stripToggle.textContent = "Play Strip";
+          phasePlayback = false;
+          phasePlayToggle.textContent = "Play Phases";
+          phaseState = null;
+          const maxFrame = Math.max(0, (sheet && sheet.frames ? sheet.frames : 1) - 1);
+          frameRange.max = String(maxFrame);
+          frameRange.value = "0";
+          frameValue.textContent = "Frame 0";
+          if (sheet) {{
+            infoEl.textContent = "Sheet: " + sheet.name + " | Frames: " + (sheet.frames || 1);
+            phaseStartInput.max = String(maxFrame);
+            phaseEndInput.max = String(maxFrame);
+            phaseEndInput.value = String(maxFrame);
+            loadLabelFields();
+            if (Object.keys(imagesBySheet).length) {{
+              renderThumbnails();
+            }}
+          }} else {{
+            infoEl.textContent = "";
+          }}
+        }}
+
+        function drawFrame(idx, alpha = 1) {{
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          if (!sheet) return;
+          const frameName = sheet.name + "/" + idx;
+          const size = (manifest.frame_size || 128);
+          const dx = (canvas.width - size) / 2;
+          const dy = (canvas.height - size) / 2;
+          const ok = window.SpriteSheetPlayer.drawFrameByName(
+            ctx,
+            imagesBySheet,
+            manifest,
+            frameName,
+            dx,
+            dy,
+            1,
+            alpha
+          );
+          if (!ok) {{
+            setStatus("Missing image for " + sheet.name);
+          }} else {{
+            setStatus("Showing " + frameName);
+          }}
+          setActiveThumb(idx);
+          if (currentFrameEl) {{
+            currentFrameEl.textContent = "Frame " + idx + " / " + (sheet.frames || 1);
+          }}
+        }}
+
+        function tick(now) {{
+          const dt = (now - last) / 1000;
+          last = now;
+          if (phasePlayback && sheet && phases.length) {{
+            const phase = phases[phaseState?.index ?? 0];
+            if (!phase) {{
+              phasePlayback = false;
+              phasePlayToggle.textContent = "Play Phases";
+            }} else {{
+              if (!phaseState) {{
+                phaseState = {{
+                  index: 0,
+                  frame: phase.start,
+                  timer: 0,
+                  holding: false,
+                  holdElapsed: 0,
+                }};
+                frameIdx = phase.start;
+                frameRange.value = String(frameIdx);
+                frameValue.textContent = "Frame " + frameIdx;
+                drawFrame(frameIdx, 1);
+              }} else if (phaseState.holding) {{
+                const pauseMs = phase.pause_ms || 0;
+                const fadeMs = phase.fade_ms || 0;
+                const totalHold = pauseMs + fadeMs;
+                phaseState.holdElapsed += dt * 1000;
+                let alpha = 1;
+                if (fadeMs > 0 && phaseState.holdElapsed > pauseMs) {{
+                  const fadeProgress = Math.min(1, (phaseState.holdElapsed - pauseMs) / fadeMs);
+                  alpha = Math.max(0, 1 - fadeProgress);
+                }}
+                drawFrame(phaseState.frame, alpha);
+                if (phaseState.holdElapsed >= totalHold) {{
+                  const nextIndex = (phaseState.index + 1) % phases.length;
+                  const nextPhase = phases[nextIndex];
+                  phaseState = {{
+                    index: nextIndex,
+                    frame: nextPhase.start,
+                    timer: 0,
+                    holding: false,
+                    holdElapsed: 0,
+                  }};
+                  frameIdx = nextPhase.start;
+                  frameRange.value = String(frameIdx);
+                  frameValue.textContent = "Frame " + frameIdx;
+                  drawFrame(frameIdx, 1);
+                }}
+              }} else {{
+                const step = fps > 0 ? 1 / fps : 0.2;
+                phaseState.timer += dt;
+                if (phaseState.timer >= step) {{
+                  phaseState.timer = 0;
+                  if (phaseState.frame < phase.end) {{
+                    phaseState.frame += 1;
+                    frameIdx = phaseState.frame;
+                    frameRange.value = String(frameIdx);
+                    frameValue.textContent = "Frame " + frameIdx;
+                    drawFrame(frameIdx, 1);
+                  }} else {{
+                    phaseState.holding = true;
+                    phaseState.holdElapsed = 0;
+                  }}
+                }}
+              }}
+            }}
+          }} else if ((playing || stripPreview) && sheet) {{
+            const step = fps > 0 ? 1 / fps : 0.2;
+            if (!window.__spriteFrameTimer) window.__spriteFrameTimer = 0;
+            window.__spriteFrameTimer += dt;
+            if (window.__spriteFrameTimer >= step) {{
+              window.__spriteFrameTimer = 0;
+              frameIdx = (frameIdx + 1) % Math.max(1, sheet.frames || 1);
+              frameRange.value = String(frameIdx);
+              frameValue.textContent = "Frame " + frameIdx;
+              drawFrame(frameIdx);
+            }}
+          }}
+          requestAnimationFrame(tick);
+        }}
+
+        function hookEvents() {{
+          logDebug("Binding events.");
+          fpsRange.addEventListener("input", () => {{
+            fps = Number(fpsRange.value);
+            fpsValue.textContent = fps + " fps";
+          }});
+          confidenceRange.addEventListener("input", () => {{
+            updateConfidenceLabel();
+          }});
+          frameRange.addEventListener("input", () => {{
+            frameIdx = Number(frameRange.value);
+            frameValue.textContent = "Frame " + frameIdx;
+            drawFrame(frameIdx);
+          }});
+          playToggle.addEventListener("click", () => {{
+            playing = !playing;
+            playToggle.textContent = playing ? "Pause" : "Play";
+            if (playing) {{
+              phasePlayback = false;
+              phasePlayToggle.textContent = "Play Phases";
+              phaseState = null;
+            }}
+            if (!playing) {{
+              drawFrame(frameIdx);
+            }}
+          }});
+          stripToggle.addEventListener("click", () => {{
+            stripPreview = !stripPreview;
+            stripToggle.textContent = stripPreview ? "Stop Strip" : "Play Strip";
+            if (stripPreview) {{
+              phasePlayback = false;
+              phasePlayToggle.textContent = "Play Phases";
+              phaseState = null;
+              playing = false;
+              playToggle.textContent = "Play";
+            }}
+            if (!stripPreview) {{
+              drawFrame(frameIdx);
+            }}
+          }});
+          phasePlayToggle.addEventListener("click", () => {{
+            if (!phases.length) {{
+              saveStatus.textContent = "Add a phase first.";
+              setTimeout(() => (saveStatus.textContent = ""), 1500);
+              return;
+            }}
+            phasePlayback = !phasePlayback;
+            phasePlayToggle.textContent = phasePlayback ? "Stop Phases" : "Play Phases";
+            if (phasePlayback) {{
+              playing = false;
+              stripPreview = false;
+              playToggle.textContent = "Play";
+              stripToggle.textContent = "Play Strip";
+              phaseState = null;
+            }} else {{
+              phaseState = null;
+              drawFrame(frameIdx);
+            }}
+          }});
+          charSelect.addEventListener("change", () => {{
+            populateActions();
+            setSheetByName(actionSelect.value);
+            drawFrame(0);
+          }});
+          actionFilter.addEventListener("input", () => {{
+            populateActions();
+            setSheetByName(actionSelect.value);
+            drawFrame(0);
+          }});
+          actionSelect.addEventListener("change", () => {{
+            setSheetByName(actionSelect.value);
+            drawFrame(0);
+          }});
+          cloneBtn.addEventListener("click", () => {{
+            const sourceKey = cloneSelect.value;
+            if (!sourceKey) {{
+              saveStatus.textContent = "Select a source action.";
+              setTimeout(() => (saveStatus.textContent = ""), 1500);
+              return;
+            }}
+            const labels = loadLabels();
+            const source = labels[sourceKey];
+            if (!source) {{
+              saveStatus.textContent = "No saved label for that action.";
+              setTimeout(() => (saveStatus.textContent = ""), 1500);
+              return;
+            }}
+            nameInput.value = source.name || "";
+            tagsInput.value = source.tags || "";
+            descInput.value = source.description || "";
+            confidenceRange.value = String(source.confidence ?? 0);
+            updateConfidenceLabel();
+            phases = Array.isArray(source.phases) ? source.phases.slice() : [];
+            renderPhases();
+            saveStatus.textContent = "Cloned (not saved yet).";
+            setTimeout(() => (saveStatus.textContent = ""), 1500);
+          }});
+          phaseAddBtn.addEventListener("click", () => {{
+            try {{
+              logDebug("Add phase click.");
+              const name = (phaseNameInput && phaseNameInput.value || "").trim();
+              if (!name) {{
+                saveStatus.textContent = "Phase needs a name.";
+                setTimeout(() => (saveStatus.textContent = ""), 1500);
+                logDebug("Phase add blocked: missing name.");
+                return;
+              }}
+              const start = Math.max(0, Number(phaseStartInput && phaseStartInput.value || 0));
+              const maxFrame = sheet && sheet.frames ? sheet.frames - 1 : start;
+              const end = Math.min(Math.max(start, Number(phaseEndInput && phaseEndInput.value || start)), maxFrame);
+              const pauseValue = phasePauseInput ? phasePauseInput.value : 0;
+              const fadeValue = phaseFadeInput ? phaseFadeInput.value : 0;
+              const pauseMs = Math.max(0, Number(pauseValue || 0)) * 1000;
+              const fadeMs = Math.max(0, Number(fadeValue || 0)) * 1000;
+              phases.push({{ name, start, end, pause_ms: pauseMs, fade_ms: fadeMs }});
+              renderPhases();
+              if (phaseNameInput) {{
+                phaseNameInput.value = "";
+              }}
+              saveStatus.textContent = "Phase added.";
+              setTimeout(() => (saveStatus.textContent = ""), 1500);
+              logDebug("Phase added: " + name + " (" + start + "-" + end + ")");
+            }} catch (err) {{
+              console.error(err);
+              saveStatus.textContent = "Phase add failed.";
+              setTimeout(() => (saveStatus.textContent = ""), 1500);
+              logDebug("Phase add error: " + err);
+            }}
+          }});
+          saveBtn.addEventListener("click", () => {{
+            const key = getLabelKey();
+            if (!key) {{
+              logDebug("Save blocked: no sheet selected.");
+              return;
+            }}
+            const labels = loadLabels();
+            const entry = {{
+              name: nameInput.value.trim(),
+              tags: tagsInput.value.trim(),
+              description: descInput.value.trim(),
+              frames: sheet ? sheet.frames : null,
+              apply_all_frames: applyAllFrames.checked,
+              confidence: Number(confidenceRange.value),
+              phases: phases.slice(),
+              updated_at: new Date().toISOString(),
+            }};
+            labels[key] = entry;
+            if (applyAllFrames.checked && sheet && sheet.frames) {{
+              for (let i = 0; i < sheet.frames; i += 1) {{
+                labels[key + "/" + i] = entry;
+              }}
+            }}
+            saveLabels(labels);
+            saveStatus.textContent = "Saved.";
+            setTimeout(() => (saveStatus.textContent = ""), 1500);
+            refreshLabelLog();
+            logDebug("Saved label for " + key + " (phases: " + phases.length + ")");
+          }});
+          downloadBtn.addEventListener("click", () => {{
+            const labels = loadLabels();
+            const payload = JSON.stringify(labels, null, 2);
+            const blob = new Blob([payload], {{ type: "application/json" }});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "sprite_labels.json";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            saveStatus.textContent = "Downloaded.";
+            setTimeout(() => (saveStatus.textContent = ""), 1500);
+          }});
+          copyBtn.addEventListener("click", async () => {{
+            const labels = loadLabels();
+            const payload = JSON.stringify(labels, null, 2);
+            try {{
+              await navigator.clipboard.writeText(payload);
+              saveStatus.textContent = "Copied JSON.";
+              setTimeout(() => (saveStatus.textContent = ""), 1500);
+            }} catch (e) {{
+              saveStatus.textContent = "Copy failed.";
+              setTimeout(() => (saveStatus.textContent = ""), 1500);
+            }}
+          }});
+        }}
+
+        if (!window.SpriteSheetPlayer || !window.SpriteSheetPlayer.loadSpriteManifest) {{
+          setStatus("Sprite helpers not loaded.");
+          return;
+        }}
+
+        const manifestPromise = window.__spriteManifest && window.__spriteManifest.sheets
+          ? Promise.resolve(window.__spriteManifest)
+          : window.SpriteSheetPlayer.loadSpriteManifest();
+
+        function loadInlineImages(map) {{
+          return new Promise((resolve) => {{
+            const imagesBySheet = {{}};
+            const errors = [];
+            const entries = Object.entries(map || {{}});
+            if (!entries.length) {{
+              resolve({{ imagesBySheet, errors }});
+              return;
+            }}
+            let remaining = entries.length;
+            entries.forEach(([name, uri]) => {{
+              const img = new Image();
+              img.onload = () => {{
+                imagesBySheet[name] = img;
+                remaining -= 1;
+                if (!remaining) resolve({{ imagesBySheet, errors }});
+              }};
+              img.onerror = () => {{
+                errors.push({{ sheet: name, error: "Failed to load inline image" }});
+                remaining -= 1;
+                if (!remaining) resolve({{ imagesBySheet, errors }});
+              }};
+              img.src = uri;
+            }});
+          }});
+        }}
+
+        manifestPromise
+          .then((data) => {{
+            manifest = data;
+            populateCharacters();
+            populateActions();
+            setSheetByName(actionSelect.value);
+            if (window.__spriteImages && Object.keys(window.__spriteImages).length) {{
+              return loadInlineImages(window.__spriteImages);
+            }}
+            return window.SpriteSheetPlayer.loadSheetImages(manifest);
+          }})
+          .then((result) => {{
+            imagesBySheet = result.imagesBySheet || {{}};
+            if (result.errors && result.errors.length) {{
+              console.warn("Sprite load errors", result.errors);
+            }}
+            hookEvents();
+            drawFrame(0);
+            renderThumbnails();
+            refreshLabelLog();
+            updateConfidenceLabel();
+            logDebug("Sprite Lab ready.");
+            setStatus("Sprite Lab ready.");
+            requestAnimationFrame(tick);
+          }})
+          .catch((err) => {{
+            console.error(err);
+            setStatus("Failed to load sprite manifest.");
+            logDebug("Init failed: " + err);
+          }});
+      }})();
+    </script>
+    """
+    components.html(sprite_lab_html, height=860)

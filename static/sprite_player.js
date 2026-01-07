@@ -12,6 +12,103 @@
     lightningIcon: [11], // big bolt
   };
 
+  function frameRectForSheet(sheet, frameIndex, frameSize) {
+    const size = frameSize || FRAME_SIZE;
+    if (!sheet || sheet.type === "strip" || sheet.type === "single") {
+      return { sx: frameIndex * size, sy: 0, w: size, h: size };
+    }
+    const cols = sheet.columns || SHEET_COLS;
+    const row = Math.floor(frameIndex / cols);
+    const col = frameIndex % cols;
+    return { sx: col * size, sy: row * size, w: size, h: size };
+  }
+
+  function buildFrameIndex(manifest) {
+    if (!manifest || !manifest.sheets) {
+      return { frameSize: FRAME_SIZE, sheets: {}, framesByName: {} };
+    }
+    const baseSize = manifest.frame_size || FRAME_SIZE;
+    const index = { frameSize: baseSize, sheets: {}, framesByName: {} };
+    manifest.sheets.forEach((sheet) => {
+      const name = sheet.name || sheet.path || "unknown";
+      const entry = {
+        name,
+        path: sheet.path,
+        type: sheet.type || "strip",
+        columns: sheet.columns || SHEET_COLS,
+        frameSize: sheet.frame_size || baseSize,
+        frames: sheet.frames || (sheet.frame_names ? sheet.frame_names.length : 0),
+      };
+      index.sheets[name] = entry;
+      const frameNames = sheet.frame_names || [];
+      frameNames.forEach((frameName, i) => {
+        const rect = frameRectForSheet(entry, i, entry.frameSize);
+        index.framesByName[frameName] = { ...rect, sheet: name, index: i };
+      });
+    });
+    return index;
+  }
+
+  function resolveFrame(manifest, frameName) {
+    if (!manifest || !frameName) return null;
+    const index = buildFrameIndex(manifest);
+    return index.framesByName[frameName] || null;
+  }
+
+  function loadSpriteManifest(url = "static/sprite_manifest.json") {
+    return fetch(url).then((res) => {
+      if (!res.ok) {
+        throw new Error(`Failed to load sprite manifest (${res.status})`);
+      }
+      return res.json();
+    });
+  }
+
+  function drawFrameByName(ctx, imagesBySheet, manifest, frameName, dx, dy, scale = 1, alpha = 1) {
+    if (!ctx || !imagesBySheet || !manifest || !frameName) return false;
+    const frame = resolveFrame(manifest, frameName);
+    if (!frame) return false;
+    const img = imagesBySheet[frame.sheet];
+    if (!img || !img.complete) return false;
+    const w = frame.w * scale;
+    const h = frame.h * scale;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(img, frame.sx, frame.sy, frame.w, frame.h, dx, dy, w, h);
+    ctx.restore();
+    return true;
+  }
+
+  function loadSheetImages(manifest, { baseUrl = "" } = {}) {
+    if (!manifest || !manifest.sheets) {
+      return Promise.resolve({ imagesBySheet: {}, errors: [] });
+    }
+    const imagesBySheet = {};
+    const errors = [];
+    const normalizePath = (p) => (p || "").replace(/\\/g, "/");
+    const loadOne = (sheet) =>
+      new Promise((resolve) => {
+        const path = normalizePath(sheet.path || "");
+        if (!path) {
+          errors.push({ sheet: sheet.name || "unknown", error: "Missing path" });
+          resolve();
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          imagesBySheet[sheet.name] = img;
+          resolve();
+        };
+        img.onerror = () => {
+          errors.push({ sheet: sheet.name || path, error: "Failed to load image" });
+          resolve();
+        };
+        img.src = `${baseUrl}${path}`;
+      });
+    const tasks = manifest.sheets.map(loadOne);
+    return Promise.all(tasks).then(() => ({ imagesBySheet, errors }));
+  }
+
   function frameToXY(frame) {
     const row = Math.floor(frame / SHEET_COLS);
     const col = frame % SHEET_COLS;
@@ -77,7 +174,7 @@
       this.effect = (config && config.effect) || "none";
       this.projectileUri = (config && config.projectileUri) || null;
       this.sequences = (config && config.sequences) || {};
-      this.scale = 0.85;
+      this.scale = 0.935;
       this.state = {
         seq: "idle",
         idx: 0,
@@ -95,6 +192,12 @@
       this.spearReady = false;
       this.arrowImage = null;
       this.arrowReady = false;
+      this.popTimer = 0;
+      this.popOffset = 0;
+    }
+
+    triggerPop() {
+      this.popTimer = 1.4;
     }
 
     updatePayload({ windMph = 0, windDirDeg = 90 } = {}) {
@@ -322,7 +425,7 @@
       const sy = 0;
       const scale = this.scale;
       const dx = this.walkerX;
-      const dy = this.anchor.y - FRAME_SIZE * scale;
+      const dy = this.anchor.y + this.popOffset - FRAME_SIZE * scale;
       const drawW = FRAME_SIZE * scale;
       const drawH = FRAME_SIZE * scale;
       this.ctx.save();
@@ -342,6 +445,13 @@
       }
       if (this.effect === "arrow") {
         this.ensureArrowSprite();
+      }
+      if (this.popTimer > 0) {
+        this.popTimer = Math.max(0, this.popTimer - dt);
+        const t = 1 - this.popTimer / 1.4;
+        this.popOffset = -Math.sin(t * Math.PI) * 12;
+      } else {
+        this.popOffset = 0;
       }
       this.walkerX += this.walkSpeed * dt * this.walkDir;
       if (this.walkDir < 0 && this.walkerX < -FRAME_SIZE * this.scale * 1.2) {
@@ -438,6 +548,12 @@
         windMph: this.lastPayload.windMph,
         windDirDeg: this.lastPayload.windDirDeg,
       });
+    }
+
+    triggerEasterEgg() {
+      if (this.character && this.character.triggerPop) {
+        this.character.triggerPop();
+      }
     }
 
     loop = (now) => {
@@ -554,6 +670,47 @@
       player.updatePayload(payload);
       return player;
     },
+    mountClimber(canvas, charactersData, payload) {
+      const sets = loadCharacterSets(charactersData);
+      const character = sets.length ? sets[0] : null;
+      if (!character) return null;
+      const strip = character.strips.walk || character.strips.run || character.strips.idle;
+      if (!strip) return null;
+      let x = -FRAME_SIZE;
+      let t = 0;
+      const ctx = canvas.getContext("2d");
+      const maxSpeed = Math.max(10, payload.windMax || 20);
+      const scale = 0.99;
+      const loop = (now) => {
+        const dt = Math.min(0.05, (now - t) / 1000 || 0.016);
+        t = now;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (!strip.ready || !strip.img.complete) {
+          requestAnimationFrame(loop);
+          return;
+        }
+        const speed = Math.max(0, payload.windMph || 0);
+        const hop = Math.sin(now / 140) * 6;
+        const y = canvas.height - 30 - (speed / maxSpeed) * (canvas.height - 50) + hop;
+        x += dt * (40 + speed * 2.2);
+        if (x > canvas.width + FRAME_SIZE) x = -FRAME_SIZE;
+        const frames = strip.frames || 1;
+        const idx = Math.floor((now / 140) % frames);
+        const sx = idx * FRAME_SIZE;
+        const dy = Math.max(10, y - FRAME_SIZE * scale);
+        ctx.drawImage(strip.img, sx, 0, FRAME_SIZE, FRAME_SIZE, x, dy, FRAME_SIZE * scale, FRAME_SIZE * scale);
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+      return { updatePayload(newPayload) { payload = { ...payload, ...newPayload }; } };
+    },
     sequences,
+    buildFrameIndex,
+    resolveFrame,
+    loadSpriteManifest,
+    drawFrameByName,
+    loadSheetImages,
+    frameSize: FRAME_SIZE,
+    sheetColumns: SHEET_COLS,
   };
 })();
