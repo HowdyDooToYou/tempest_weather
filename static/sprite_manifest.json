@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-01-07T03:35:38Z",
+  "generated_at": "2026-01-09T02:30:52.876062Z",
   "frame_size": 128,
   "sheet_columns": 8,
   "sheets": [
@@ -585,6 +585,7794 @@
         "Skeleton_Warrior/Walk/5",
         "Skeleton_Warrior/Walk/6"
       ]
+    },
+    {
+      "name": "Sonic/sonic-full_sprite_sheet",
+      "path": "images\\uploads\\Sonic\\sonic-full_sprite_sheet.png",
+      "type": "strip",
+      "frame_size": 1175,
+      "width": 1194,
+      "height": 1175,
+      "frames": 1,
+      "frame_names": [
+        "Sonic/sonic-full_sprite_sheet/0"
+      ]
+    },
+    {
+      "name": "sonic/sonic-full_sprite_sheet",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 202,
+      "frame_names": [
+        "sonic/sonic-full_sprite_sheet/0",
+        "sonic/sonic-full_sprite_sheet/1",
+        "sonic/sonic-full_sprite_sheet/2",
+        "sonic/sonic-full_sprite_sheet/3",
+        "sonic/sonic-full_sprite_sheet/4",
+        "sonic/sonic-full_sprite_sheet/5",
+        "sonic/sonic-full_sprite_sheet/6",
+        "sonic/sonic-full_sprite_sheet/7",
+        "sonic/sonic-full_sprite_sheet/8",
+        "sonic/sonic-full_sprite_sheet/9",
+        "sonic/sonic-full_sprite_sheet/10",
+        "sonic/sonic-full_sprite_sheet/11",
+        "sonic/sonic-full_sprite_sheet/12",
+        "sonic/sonic-full_sprite_sheet/13",
+        "sonic/sonic-full_sprite_sheet/14",
+        "sonic/sonic-full_sprite_sheet/15",
+        "sonic/sonic-full_sprite_sheet/16",
+        "sonic/sonic-full_sprite_sheet/17",
+        "sonic/sonic-full_sprite_sheet/18",
+        "sonic/sonic-full_sprite_sheet/19",
+        "sonic/sonic-full_sprite_sheet/20",
+        "sonic/sonic-full_sprite_sheet/21",
+        "sonic/sonic-full_sprite_sheet/22",
+        "sonic/sonic-full_sprite_sheet/23",
+        "sonic/sonic-full_sprite_sheet/24",
+        "sonic/sonic-full_sprite_sheet/25",
+        "sonic/sonic-full_sprite_sheet/26",
+        "sonic/sonic-full_sprite_sheet/27",
+        "sonic/sonic-full_sprite_sheet/28",
+        "sonic/sonic-full_sprite_sheet/29",
+        "sonic/sonic-full_sprite_sheet/30",
+        "sonic/sonic-full_sprite_sheet/31",
+        "sonic/sonic-full_sprite_sheet/32",
+        "sonic/sonic-full_sprite_sheet/33",
+        "sonic/sonic-full_sprite_sheet/34",
+        "sonic/sonic-full_sprite_sheet/35",
+        "sonic/sonic-full_sprite_sheet/36",
+        "sonic/sonic-full_sprite_sheet/37",
+        "sonic/sonic-full_sprite_sheet/38",
+        "sonic/sonic-full_sprite_sheet/39",
+        "sonic/sonic-full_sprite_sheet/40",
+        "sonic/sonic-full_sprite_sheet/41",
+        "sonic/sonic-full_sprite_sheet/42",
+        "sonic/sonic-full_sprite_sheet/43",
+        "sonic/sonic-full_sprite_sheet/44",
+        "sonic/sonic-full_sprite_sheet/45",
+        "sonic/sonic-full_sprite_sheet/46",
+        "sonic/sonic-full_sprite_sheet/47",
+        "sonic/sonic-full_sprite_sheet/48",
+        "sonic/sonic-full_sprite_sheet/49",
+        "sonic/sonic-full_sprite_sheet/50",
+        "sonic/sonic-full_sprite_sheet/51",
+        "sonic/sonic-full_sprite_sheet/52",
+        "sonic/sonic-full_sprite_sheet/53",
+        "sonic/sonic-full_sprite_sheet/54",
+        "sonic/sonic-full_sprite_sheet/55",
+        "sonic/sonic-full_sprite_sheet/56",
+        "sonic/sonic-full_sprite_sheet/57",
+        "sonic/sonic-full_sprite_sheet/58",
+        "sonic/sonic-full_sprite_sheet/59",
+        "sonic/sonic-full_sprite_sheet/60",
+        "sonic/sonic-full_sprite_sheet/61",
+        "sonic/sonic-full_sprite_sheet/62",
+        "sonic/sonic-full_sprite_sheet/63",
+        "sonic/sonic-full_sprite_sheet/64",
+        "sonic/sonic-full_sprite_sheet/65",
+        "sonic/sonic-full_sprite_sheet/66",
+        "sonic/sonic-full_sprite_sheet/67",
+        "sonic/sonic-full_sprite_sheet/68",
+        "sonic/sonic-full_sprite_sheet/69",
+        "sonic/sonic-full_sprite_sheet/70",
+        "sonic/sonic-full_sprite_sheet/71",
+        "sonic/sonic-full_sprite_sheet/72",
+        "sonic/sonic-full_sprite_sheet/73",
+        "sonic/sonic-full_sprite_sheet/74",
+        "sonic/sonic-full_sprite_sheet/75",
+        "sonic/sonic-full_sprite_sheet/76",
+        "sonic/sonic-full_sprite_sheet/77",
+        "sonic/sonic-full_sprite_sheet/78",
+        "sonic/sonic-full_sprite_sheet/79",
+        "sonic/sonic-full_sprite_sheet/80",
+        "sonic/sonic-full_sprite_sheet/81",
+        "sonic/sonic-full_sprite_sheet/82",
+        "sonic/sonic-full_sprite_sheet/83",
+        "sonic/sonic-full_sprite_sheet/84",
+        "sonic/sonic-full_sprite_sheet/85",
+        "sonic/sonic-full_sprite_sheet/86",
+        "sonic/sonic-full_sprite_sheet/87",
+        "sonic/sonic-full_sprite_sheet/88",
+        "sonic/sonic-full_sprite_sheet/89",
+        "sonic/sonic-full_sprite_sheet/90",
+        "sonic/sonic-full_sprite_sheet/91",
+        "sonic/sonic-full_sprite_sheet/92",
+        "sonic/sonic-full_sprite_sheet/93",
+        "sonic/sonic-full_sprite_sheet/94",
+        "sonic/sonic-full_sprite_sheet/95",
+        "sonic/sonic-full_sprite_sheet/96",
+        "sonic/sonic-full_sprite_sheet/97",
+        "sonic/sonic-full_sprite_sheet/98",
+        "sonic/sonic-full_sprite_sheet/99",
+        "sonic/sonic-full_sprite_sheet/100",
+        "sonic/sonic-full_sprite_sheet/101",
+        "sonic/sonic-full_sprite_sheet/102",
+        "sonic/sonic-full_sprite_sheet/103",
+        "sonic/sonic-full_sprite_sheet/104",
+        "sonic/sonic-full_sprite_sheet/105",
+        "sonic/sonic-full_sprite_sheet/106",
+        "sonic/sonic-full_sprite_sheet/107",
+        "sonic/sonic-full_sprite_sheet/108",
+        "sonic/sonic-full_sprite_sheet/109",
+        "sonic/sonic-full_sprite_sheet/110",
+        "sonic/sonic-full_sprite_sheet/111",
+        "sonic/sonic-full_sprite_sheet/112",
+        "sonic/sonic-full_sprite_sheet/113",
+        "sonic/sonic-full_sprite_sheet/114",
+        "sonic/sonic-full_sprite_sheet/115",
+        "sonic/sonic-full_sprite_sheet/116",
+        "sonic/sonic-full_sprite_sheet/117",
+        "sonic/sonic-full_sprite_sheet/118",
+        "sonic/sonic-full_sprite_sheet/119",
+        "sonic/sonic-full_sprite_sheet/120",
+        "sonic/sonic-full_sprite_sheet/121",
+        "sonic/sonic-full_sprite_sheet/122",
+        "sonic/sonic-full_sprite_sheet/123",
+        "sonic/sonic-full_sprite_sheet/124",
+        "sonic/sonic-full_sprite_sheet/125",
+        "sonic/sonic-full_sprite_sheet/126",
+        "sonic/sonic-full_sprite_sheet/127",
+        "sonic/sonic-full_sprite_sheet/128",
+        "sonic/sonic-full_sprite_sheet/129",
+        "sonic/sonic-full_sprite_sheet/130",
+        "sonic/sonic-full_sprite_sheet/131",
+        "sonic/sonic-full_sprite_sheet/132",
+        "sonic/sonic-full_sprite_sheet/133",
+        "sonic/sonic-full_sprite_sheet/134",
+        "sonic/sonic-full_sprite_sheet/135",
+        "sonic/sonic-full_sprite_sheet/136",
+        "sonic/sonic-full_sprite_sheet/137",
+        "sonic/sonic-full_sprite_sheet/138",
+        "sonic/sonic-full_sprite_sheet/139",
+        "sonic/sonic-full_sprite_sheet/140",
+        "sonic/sonic-full_sprite_sheet/141",
+        "sonic/sonic-full_sprite_sheet/142",
+        "sonic/sonic-full_sprite_sheet/143",
+        "sonic/sonic-full_sprite_sheet/144",
+        "sonic/sonic-full_sprite_sheet/145",
+        "sonic/sonic-full_sprite_sheet/146",
+        "sonic/sonic-full_sprite_sheet/147",
+        "sonic/sonic-full_sprite_sheet/148",
+        "sonic/sonic-full_sprite_sheet/149",
+        "sonic/sonic-full_sprite_sheet/150",
+        "sonic/sonic-full_sprite_sheet/151",
+        "sonic/sonic-full_sprite_sheet/152",
+        "sonic/sonic-full_sprite_sheet/153",
+        "sonic/sonic-full_sprite_sheet/154",
+        "sonic/sonic-full_sprite_sheet/155",
+        "sonic/sonic-full_sprite_sheet/156",
+        "sonic/sonic-full_sprite_sheet/157",
+        "sonic/sonic-full_sprite_sheet/158",
+        "sonic/sonic-full_sprite_sheet/159",
+        "sonic/sonic-full_sprite_sheet/160",
+        "sonic/sonic-full_sprite_sheet/161",
+        "sonic/sonic-full_sprite_sheet/162",
+        "sonic/sonic-full_sprite_sheet/163",
+        "sonic/sonic-full_sprite_sheet/164",
+        "sonic/sonic-full_sprite_sheet/165",
+        "sonic/sonic-full_sprite_sheet/166",
+        "sonic/sonic-full_sprite_sheet/167",
+        "sonic/sonic-full_sprite_sheet/168",
+        "sonic/sonic-full_sprite_sheet/169",
+        "sonic/sonic-full_sprite_sheet/170",
+        "sonic/sonic-full_sprite_sheet/171",
+        "sonic/sonic-full_sprite_sheet/172",
+        "sonic/sonic-full_sprite_sheet/173",
+        "sonic/sonic-full_sprite_sheet/174",
+        "sonic/sonic-full_sprite_sheet/175",
+        "sonic/sonic-full_sprite_sheet/176",
+        "sonic/sonic-full_sprite_sheet/177",
+        "sonic/sonic-full_sprite_sheet/178",
+        "sonic/sonic-full_sprite_sheet/179",
+        "sonic/sonic-full_sprite_sheet/180",
+        "sonic/sonic-full_sprite_sheet/181",
+        "sonic/sonic-full_sprite_sheet/182",
+        "sonic/sonic-full_sprite_sheet/183",
+        "sonic/sonic-full_sprite_sheet/184",
+        "sonic/sonic-full_sprite_sheet/185",
+        "sonic/sonic-full_sprite_sheet/186",
+        "sonic/sonic-full_sprite_sheet/187",
+        "sonic/sonic-full_sprite_sheet/188",
+        "sonic/sonic-full_sprite_sheet/189",
+        "sonic/sonic-full_sprite_sheet/190",
+        "sonic/sonic-full_sprite_sheet/191",
+        "sonic/sonic-full_sprite_sheet/192",
+        "sonic/sonic-full_sprite_sheet/193",
+        "sonic/sonic-full_sprite_sheet/194",
+        "sonic/sonic-full_sprite_sheet/195",
+        "sonic/sonic-full_sprite_sheet/196",
+        "sonic/sonic-full_sprite_sheet/197",
+        "sonic/sonic-full_sprite_sheet/198",
+        "sonic/sonic-full_sprite_sheet/199",
+        "sonic/sonic-full_sprite_sheet/200",
+        "sonic/sonic-full_sprite_sheet/201"
+      ],
+      "frame_rects": [
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 324,
+          "h": 228
+        },
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 1166,
+          "h": 1147
+        },
+        {
+          "sx": 873,
+          "sy": 60,
+          "w": 223,
+          "h": 74
+        },
+        {
+          "sx": 379,
+          "sy": 79,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 457,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 524,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 591,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 658,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 732,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 809,
+          "sy": 92,
+          "w": 33,
+          "h": 30
+        },
+        {
+          "sx": 382,
+          "sy": 171,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 444,
+          "sy": 169,
+          "w": 40,
+          "h": 41
+        },
+        {
+          "sx": 511,
+          "sy": 170,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 583,
+          "sy": 171,
+          "w": 31,
+          "h": 41
+        },
+        {
+          "sx": 646,
+          "sy": 169,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 718,
+          "sy": 170,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 785,
+          "sy": 169,
+          "w": 38,
+          "h": 41
+        },
+        {
+          "sx": 850,
+          "sy": 167,
+          "w": 40,
+          "h": 47
+        },
+        {
+          "sx": 918,
+          "sy": 168,
+          "w": 39,
+          "h": 44
+        },
+        {
+          "sx": 984,
+          "sy": 171,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 169,
+          "w": 42,
+          "h": 47
+        },
+        {
+          "sx": 1117,
+          "sy": 170,
+          "w": 45,
+          "h": 38
+        },
+        {
+          "sx": 378,
+          "sy": 246,
+          "w": 41,
+          "h": 28
+        },
+        {
+          "sx": 443,
+          "sy": 240,
+          "w": 41,
+          "h": 40
+        },
+        {
+          "sx": 511,
+          "sy": 246,
+          "w": 42,
+          "h": 33
+        },
+        {
+          "sx": 579,
+          "sy": 244,
+          "w": 41,
+          "h": 31
+        },
+        {
+          "sx": 644,
+          "sy": 238,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 712,
+          "sy": 239,
+          "w": 42,
+          "h": 36
+        },
+        {
+          "sx": 781,
+          "sy": 239,
+          "w": 41,
+          "h": 38
+        },
+        {
+          "sx": 846,
+          "sy": 239,
+          "w": 47,
+          "h": 40
+        },
+        {
+          "sx": 914,
+          "sy": 239,
+          "w": 44,
+          "h": 39
+        },
+        {
+          "sx": 984,
+          "sy": 237,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 239,
+          "w": 47,
+          "h": 42
+        },
+        {
+          "sx": 1117,
+          "sy": 235,
+          "w": 38,
+          "h": 45
+        },
+        {
+          "sx": 18,
+          "sy": 276,
+          "w": 52,
+          "h": 15
+        },
+        {
+          "sx": 69,
+          "sy": 276,
+          "w": 35,
+          "h": 16
+        },
+        {
+          "sx": 103,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 139,
+          "sy": 276,
+          "w": 35,
+          "h": 15
+        },
+        {
+          "sx": 214,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 274,
+          "sy": 276,
+          "w": 60,
+          "h": 15
+        },
+        {
+          "sx": 40,
+          "sy": 355,
+          "w": 35,
+          "h": 39
+        },
+        {
+          "sx": 107,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 175,
+          "sy": 355,
+          "w": 34,
+          "h": 39
+        },
+        {
+          "sx": 241,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 314,
+          "sy": 353,
+          "w": 41,
+          "h": 43
+        },
+        {
+          "sx": 382,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 448,
+          "sy": 353,
+          "w": 40,
+          "h": 43
+        },
+        {
+          "sx": 516,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 586,
+          "sy": 358,
+          "w": 39,
+          "h": 35
+        },
+        {
+          "sx": 652,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 720,
+          "sy": 358,
+          "w": 39,
+          "h": 34
+        },
+        {
+          "sx": 786,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 855,
+          "sy": 349,
+          "w": 43,
+          "h": 41
+        },
+        {
+          "sx": 921,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        },
+        {
+          "sx": 989,
+          "sy": 350,
+          "w": 43,
+          "h": 40
+        },
+        {
+          "sx": 1055,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        },
+        {
+          "sx": 44,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 111,
+          "sy": 445,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 179,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 245,
+          "sy": 446,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 312,
+          "sy": 445,
+          "w": 34,
+          "h": 34
+        },
+        {
+          "sx": 389,
+          "sy": 444,
+          "w": 34,
+          "h": 40
+        },
+        {
+          "sx": 452,
+          "sy": 444,
+          "w": 38,
+          "h": 40
+        },
+        {
+          "sx": 514,
+          "sy": 440,
+          "w": 42,
+          "h": 44
+        },
+        {
+          "sx": 583,
+          "sy": 441,
+          "w": 37,
+          "h": 43
+        },
+        {
+          "sx": 672,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 734,
+          "sy": 448,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 795,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 863,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 945,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 1016,
+          "sy": 438,
+          "w": 28,
+          "h": 49
+        },
+        {
+          "sx": 35,
+          "sy": 540,
+          "w": 52,
+          "h": 29
+        },
+        {
+          "sx": 102,
+          "sy": 540,
+          "w": 51,
+          "h": 30
+        },
+        {
+          "sx": 184,
+          "sy": 534,
+          "w": 33,
+          "h": 40
+        },
+        {
+          "sx": 256,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 319,
+          "sy": 534,
+          "w": 32,
+          "h": 40
+        },
+        {
+          "sx": 390,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 465,
+          "sy": 529,
+          "w": 38,
+          "h": 44
+        },
+        {
+          "sx": 541,
+          "sy": 526,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 613,
+          "sy": 532,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "sx": 687,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 763,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 830,
+          "sy": 538,
+          "w": 43,
+          "h": 31
+        },
+        {
+          "sx": 901,
+          "sy": 512,
+          "w": 76,
+          "h": 54
+        },
+        {
+          "sx": 983,
+          "sy": 539,
+          "w": 44,
+          "h": 16
+        },
+        {
+          "sx": 1038,
+          "sy": 540,
+          "w": 26,
+          "h": 15
+        },
+        {
+          "sx": 1081,
+          "sy": 523,
+          "w": 39,
+          "h": 14
+        },
+        {
+          "sx": 45,
+          "sy": 675,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 106,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 188,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 255,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 316,
+          "sy": 674,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 383,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 450,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 517,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 611,
+          "sy": 682,
+          "w": 44,
+          "h": 26
+        },
+        {
+          "sx": 682,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 754,
+          "sy": 673,
+          "w": 26,
+          "h": 44
+        },
+        {
+          "sx": 816,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 894,
+          "sy": 669,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 968,
+          "sy": 674,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 1046,
+          "sy": 672,
+          "w": 26,
+          "h": 45
+        },
+        {
+          "sx": 615,
+          "sy": 763,
+          "w": 36,
+          "h": 43
+        },
+        {
+          "sx": 684,
+          "sy": 765,
+          "w": 32,
+          "h": 39
+        },
+        {
+          "sx": 754,
+          "sy": 769,
+          "w": 26,
+          "h": 24
+        },
+        {
+          "sx": 959,
+          "sy": 760,
+          "w": 37,
+          "h": 49
+        },
+        {
+          "sx": 1026,
+          "sy": 759,
+          "w": 39,
+          "h": 50
+        },
+        {
+          "sx": 62,
+          "sy": 798,
+          "w": 48,
+          "h": 75
+        },
+        {
+          "sx": 615,
+          "sy": 862,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 681,
+          "sy": 861,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 586,
+          "sy": 946,
+          "w": 594,
+          "h": 181
+        },
+        {
+          "sx": 39,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 106,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 173,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 239,
+          "sy": 991,
+          "w": 52,
+          "h": 17
+        },
+        {
+          "sx": 598,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 989,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1006,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1023,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1062,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 42,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 104,
+          "sy": 1103,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 161,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 233,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 315,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 386,
+          "sy": 1093,
+          "w": 28,
+          "h": 49
+        },
+        {
+          "sx": 598,
+          "sy": 1079,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1096,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row1_Col1",
+        "Row1_Col2",
+        "Row2_Col1",
+        "Row3_Col1",
+        "Row3_Col2",
+        "Row3_Col3",
+        "Row3_Col4",
+        "Row3_Col5",
+        "Row3_Col6",
+        "Row3_Col7",
+        "Row4_Col1",
+        "Row4_Col2",
+        "Row4_Col3",
+        "Row4_Col4",
+        "Row4_Col5",
+        "Row4_Col6",
+        "Row4_Col7",
+        "Row4_Col8",
+        "Row4_Col9",
+        "Row4_Col10",
+        "Row4_Col11",
+        "Row4_Col12",
+        "Row5_Col1",
+        "Row5_Col2",
+        "Row5_Col3",
+        "Row5_Col4",
+        "Row5_Col5",
+        "Row5_Col6",
+        "Row5_Col7",
+        "Row5_Col8",
+        "Row5_Col9",
+        "Row5_Col10",
+        "Row5_Col11",
+        "Row5_Col12",
+        "Row6_Col1",
+        "Row6_Col2",
+        "Row6_Col3",
+        "Row6_Col4",
+        "Row6_Col5",
+        "Row6_Col6",
+        "Row7_Col1",
+        "Row7_Col2",
+        "Row7_Col3",
+        "Row7_Col4",
+        "Row7_Col5",
+        "Row7_Col6",
+        "Row7_Col7",
+        "Row7_Col8",
+        "Row7_Col9",
+        "Row7_Col10",
+        "Row7_Col11",
+        "Row7_Col12",
+        "Row7_Col13",
+        "Row7_Col14",
+        "Row7_Col15",
+        "Row7_Col16",
+        "Row8_Col1",
+        "Row8_Col2",
+        "Row8_Col3",
+        "Row8_Col4",
+        "Row8_Col5",
+        "Row8_Col6",
+        "Row8_Col7",
+        "Row8_Col8",
+        "Row8_Col9",
+        "Row8_Col10",
+        "Row8_Col11",
+        "Row8_Col12",
+        "Row8_Col13",
+        "Row8_Col14",
+        "Row8_Col15",
+        "Row9_Col1",
+        "Row9_Col2",
+        "Row9_Col3",
+        "Row9_Col4",
+        "Row9_Col5",
+        "Row9_Col6",
+        "Row9_Col7",
+        "Row9_Col8",
+        "Row9_Col9",
+        "Row9_Col10",
+        "Row9_Col11",
+        "Row9_Col12",
+        "Row9_Col13",
+        "Row9_Col14",
+        "Row9_Col15",
+        "Row9_Col16",
+        "Row10_Col1",
+        "Row10_Col2",
+        "Row10_Col3",
+        "Row10_Col4",
+        "Row10_Col5",
+        "Row10_Col6",
+        "Row10_Col7",
+        "Row10_Col8",
+        "Row10_Col9",
+        "Row10_Col10",
+        "Row10_Col11",
+        "Row10_Col12",
+        "Row10_Col13",
+        "Row10_Col14",
+        "Row10_Col15",
+        "Row11_Col1",
+        "Row11_Col2",
+        "Row11_Col3",
+        "Row11_Col4",
+        "Row11_Col5",
+        "Row12_Col1",
+        "Row13_Col1",
+        "Row13_Col2",
+        "Row14_Col1",
+        "Row15_Col1",
+        "Row15_Col2",
+        "Row15_Col3",
+        "Row15_Col4",
+        "Row15_Col5",
+        "Row15_Col6",
+        "Row15_Col7",
+        "Row15_Col8",
+        "Row15_Col9",
+        "Row15_Col10",
+        "Row15_Col11",
+        "Row15_Col12",
+        "Row15_Col13",
+        "Row15_Col14",
+        "Row15_Col15",
+        "Row15_Col16",
+        "Row15_Col17",
+        "Row15_Col18",
+        "Row15_Col19",
+        "Row15_Col20",
+        "Row15_Col21",
+        "Row15_Col22",
+        "Row16_Col1",
+        "Row16_Col2",
+        "Row16_Col3",
+        "Row16_Col4",
+        "Row16_Col5",
+        "Row16_Col6",
+        "Row16_Col7",
+        "Row16_Col8",
+        "Row16_Col9",
+        "Row16_Col10",
+        "Row16_Col11",
+        "Row16_Col12",
+        "Row16_Col13",
+        "Row16_Col14",
+        "Row16_Col15",
+        "Row16_Col16",
+        "Row16_Col17",
+        "Row16_Col18",
+        "Row17_Col1",
+        "Row17_Col2",
+        "Row17_Col3",
+        "Row17_Col4",
+        "Row17_Col5",
+        "Row17_Col6",
+        "Row17_Col7",
+        "Row17_Col8",
+        "Row17_Col9",
+        "Row17_Col10",
+        "Row17_Col11",
+        "Row17_Col12",
+        "Row17_Col13",
+        "Row17_Col14",
+        "Row17_Col15",
+        "Row17_Col16",
+        "Row17_Col17",
+        "Row17_Col18",
+        "Row18_Col1",
+        "Row18_Col2",
+        "Row18_Col3",
+        "Row18_Col4",
+        "Row18_Col5",
+        "Row18_Col6",
+        "Row18_Col7",
+        "Row18_Col8",
+        "Row18_Col9",
+        "Row19_Col1",
+        "Row19_Col2",
+        "Row19_Col3",
+        "Row19_Col4",
+        "Row19_Col5",
+        "Row19_Col6",
+        "Row19_Col7",
+        "Row19_Col8",
+        "Row19_Col9",
+        "Row19_Col10",
+        "Row19_Col11",
+        "Row19_Col12",
+        "Row19_Col13",
+        "Row19_Col14",
+        "Row19_Col15",
+        "Row19_Col16",
+        "Row19_Col17",
+        "Row19_Col18",
+        "Row19_Col19",
+        "Row19_Col20",
+        "Row19_Col21",
+        "Row19_Col22",
+        "Row19_Col23",
+        "Row19_Col24"
+      ],
+      "row_groups": [
+        {
+          "row": 1,
+          "label": "Row1",
+          "indices": [
+            0,
+            1
+          ]
+        },
+        {
+          "row": 2,
+          "label": "Row2",
+          "indices": [
+            2
+          ]
+        },
+        {
+          "row": 3,
+          "label": "Row3",
+          "indices": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ]
+        },
+        {
+          "row": 4,
+          "label": "Row4",
+          "indices": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21
+          ]
+        },
+        {
+          "row": 5,
+          "label": "Row5",
+          "indices": [
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33
+          ]
+        },
+        {
+          "row": 6,
+          "label": "Row6",
+          "indices": [
+            34,
+            35,
+            36,
+            37,
+            38,
+            39
+          ]
+        },
+        {
+          "row": 7,
+          "label": "Row7",
+          "indices": [
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55
+          ]
+        },
+        {
+          "row": 8,
+          "label": "Row8",
+          "indices": [
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70
+          ]
+        },
+        {
+          "row": 9,
+          "label": "Row9",
+          "indices": [
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86
+          ]
+        },
+        {
+          "row": 10,
+          "label": "Row10",
+          "indices": [
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101
+          ]
+        },
+        {
+          "row": 11,
+          "label": "Row11",
+          "indices": [
+            102,
+            103,
+            104,
+            105,
+            106
+          ]
+        },
+        {
+          "row": 12,
+          "label": "Row12",
+          "indices": [
+            107
+          ]
+        },
+        {
+          "row": 13,
+          "label": "Row13",
+          "indices": [
+            108,
+            109
+          ]
+        },
+        {
+          "row": 14,
+          "label": "Row14",
+          "indices": [
+            110
+          ]
+        },
+        {
+          "row": 15,
+          "label": "Row15",
+          "indices": [
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132
+          ]
+        },
+        {
+          "row": 16,
+          "label": "Row16",
+          "indices": [
+            133,
+            134,
+            135,
+            136,
+            137,
+            138,
+            139,
+            140,
+            141,
+            142,
+            143,
+            144,
+            145,
+            146,
+            147,
+            148,
+            149,
+            150
+          ]
+        },
+        {
+          "row": 17,
+          "label": "Row17",
+          "indices": [
+            151,
+            152,
+            153,
+            154,
+            155,
+            156,
+            157,
+            158,
+            159,
+            160,
+            161,
+            162,
+            163,
+            164,
+            165,
+            166,
+            167,
+            168
+          ]
+        },
+        {
+          "row": 18,
+          "label": "Row18",
+          "indices": [
+            169,
+            170,
+            171,
+            172,
+            173,
+            174,
+            175,
+            176,
+            177
+          ]
+        },
+        {
+          "row": 19,
+          "label": "Row19",
+          "indices": [
+            178,
+            179,
+            180,
+            181,
+            182,
+            183,
+            184,
+            185,
+            186,
+            187,
+            188,
+            189,
+            190,
+            191,
+            192,
+            193,
+            194,
+            195,
+            196,
+            197,
+            198,
+            199,
+            200,
+            201
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sonic/Row1",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 2,
+      "frame_names": [
+        "sonic/Row1/0",
+        "sonic/Row1/1"
+      ],
+      "frame_rects": [
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 324,
+          "h": 228
+        },
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 1166,
+          "h": 1147
+        }
+      ],
+      "frame_labels": [
+        "Row1_Col1",
+        "Row1_Col2"
+      ],
+      "group_label": "Row1",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row2",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 1,
+      "frame_names": [
+        "sonic/Row2/0"
+      ],
+      "frame_rects": [
+        {
+          "sx": 873,
+          "sy": 60,
+          "w": 223,
+          "h": 74
+        }
+      ],
+      "frame_labels": [
+        "Row2_Col1"
+      ],
+      "group_label": "Row2",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row3",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 7,
+      "frame_names": [
+        "sonic/Row3/0",
+        "sonic/Row3/1",
+        "sonic/Row3/2",
+        "sonic/Row3/3",
+        "sonic/Row3/4",
+        "sonic/Row3/5",
+        "sonic/Row3/6"
+      ],
+      "frame_rects": [
+        {
+          "sx": 379,
+          "sy": 79,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 457,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 524,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 591,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 658,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 732,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 809,
+          "sy": 92,
+          "w": 33,
+          "h": 30
+        }
+      ],
+      "frame_labels": [
+        "Row3_Col1",
+        "Row3_Col2",
+        "Row3_Col3",
+        "Row3_Col4",
+        "Row3_Col5",
+        "Row3_Col6",
+        "Row3_Col7"
+      ],
+      "group_label": "Row3",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row4",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 12,
+      "frame_names": [
+        "sonic/Row4/0",
+        "sonic/Row4/1",
+        "sonic/Row4/2",
+        "sonic/Row4/3",
+        "sonic/Row4/4",
+        "sonic/Row4/5",
+        "sonic/Row4/6",
+        "sonic/Row4/7",
+        "sonic/Row4/8",
+        "sonic/Row4/9",
+        "sonic/Row4/10",
+        "sonic/Row4/11"
+      ],
+      "frame_rects": [
+        {
+          "sx": 382,
+          "sy": 171,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 444,
+          "sy": 169,
+          "w": 40,
+          "h": 41
+        },
+        {
+          "sx": 511,
+          "sy": 170,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 583,
+          "sy": 171,
+          "w": 31,
+          "h": 41
+        },
+        {
+          "sx": 646,
+          "sy": 169,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 718,
+          "sy": 170,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 785,
+          "sy": 169,
+          "w": 38,
+          "h": 41
+        },
+        {
+          "sx": 850,
+          "sy": 167,
+          "w": 40,
+          "h": 47
+        },
+        {
+          "sx": 918,
+          "sy": 168,
+          "w": 39,
+          "h": 44
+        },
+        {
+          "sx": 984,
+          "sy": 171,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 169,
+          "w": 42,
+          "h": 47
+        },
+        {
+          "sx": 1117,
+          "sy": 170,
+          "w": 45,
+          "h": 38
+        }
+      ],
+      "frame_labels": [
+        "Row4_Col1",
+        "Row4_Col2",
+        "Row4_Col3",
+        "Row4_Col4",
+        "Row4_Col5",
+        "Row4_Col6",
+        "Row4_Col7",
+        "Row4_Col8",
+        "Row4_Col9",
+        "Row4_Col10",
+        "Row4_Col11",
+        "Row4_Col12"
+      ],
+      "group_label": "Row4",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row5",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 12,
+      "frame_names": [
+        "sonic/Row5/0",
+        "sonic/Row5/1",
+        "sonic/Row5/2",
+        "sonic/Row5/3",
+        "sonic/Row5/4",
+        "sonic/Row5/5",
+        "sonic/Row5/6",
+        "sonic/Row5/7",
+        "sonic/Row5/8",
+        "sonic/Row5/9",
+        "sonic/Row5/10",
+        "sonic/Row5/11"
+      ],
+      "frame_rects": [
+        {
+          "sx": 378,
+          "sy": 246,
+          "w": 41,
+          "h": 28
+        },
+        {
+          "sx": 443,
+          "sy": 240,
+          "w": 41,
+          "h": 40
+        },
+        {
+          "sx": 511,
+          "sy": 246,
+          "w": 42,
+          "h": 33
+        },
+        {
+          "sx": 579,
+          "sy": 244,
+          "w": 41,
+          "h": 31
+        },
+        {
+          "sx": 644,
+          "sy": 238,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 712,
+          "sy": 239,
+          "w": 42,
+          "h": 36
+        },
+        {
+          "sx": 781,
+          "sy": 239,
+          "w": 41,
+          "h": 38
+        },
+        {
+          "sx": 846,
+          "sy": 239,
+          "w": 47,
+          "h": 40
+        },
+        {
+          "sx": 914,
+          "sy": 239,
+          "w": 44,
+          "h": 39
+        },
+        {
+          "sx": 984,
+          "sy": 237,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 239,
+          "w": 47,
+          "h": 42
+        },
+        {
+          "sx": 1117,
+          "sy": 235,
+          "w": 38,
+          "h": 45
+        }
+      ],
+      "frame_labels": [
+        "Row5_Col1",
+        "Row5_Col2",
+        "Row5_Col3",
+        "Row5_Col4",
+        "Row5_Col5",
+        "Row5_Col6",
+        "Row5_Col7",
+        "Row5_Col8",
+        "Row5_Col9",
+        "Row5_Col10",
+        "Row5_Col11",
+        "Row5_Col12"
+      ],
+      "group_label": "Row5",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row6",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 6,
+      "frame_names": [
+        "sonic/Row6/0",
+        "sonic/Row6/1",
+        "sonic/Row6/2",
+        "sonic/Row6/3",
+        "sonic/Row6/4",
+        "sonic/Row6/5"
+      ],
+      "frame_rects": [
+        {
+          "sx": 18,
+          "sy": 276,
+          "w": 52,
+          "h": 15
+        },
+        {
+          "sx": 69,
+          "sy": 276,
+          "w": 35,
+          "h": 16
+        },
+        {
+          "sx": 103,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 139,
+          "sy": 276,
+          "w": 35,
+          "h": 15
+        },
+        {
+          "sx": 214,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 274,
+          "sy": 276,
+          "w": 60,
+          "h": 15
+        }
+      ],
+      "frame_labels": [
+        "Row6_Col1",
+        "Row6_Col2",
+        "Row6_Col3",
+        "Row6_Col4",
+        "Row6_Col5",
+        "Row6_Col6"
+      ],
+      "group_label": "Row6",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row7",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 16,
+      "frame_names": [
+        "sonic/Row7/0",
+        "sonic/Row7/1",
+        "sonic/Row7/2",
+        "sonic/Row7/3",
+        "sonic/Row7/4",
+        "sonic/Row7/5",
+        "sonic/Row7/6",
+        "sonic/Row7/7",
+        "sonic/Row7/8",
+        "sonic/Row7/9",
+        "sonic/Row7/10",
+        "sonic/Row7/11",
+        "sonic/Row7/12",
+        "sonic/Row7/13",
+        "sonic/Row7/14",
+        "sonic/Row7/15"
+      ],
+      "frame_rects": [
+        {
+          "sx": 40,
+          "sy": 355,
+          "w": 35,
+          "h": 39
+        },
+        {
+          "sx": 107,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 175,
+          "sy": 355,
+          "w": 34,
+          "h": 39
+        },
+        {
+          "sx": 241,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 314,
+          "sy": 353,
+          "w": 41,
+          "h": 43
+        },
+        {
+          "sx": 382,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 448,
+          "sy": 353,
+          "w": 40,
+          "h": 43
+        },
+        {
+          "sx": 516,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 586,
+          "sy": 358,
+          "w": 39,
+          "h": 35
+        },
+        {
+          "sx": 652,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 720,
+          "sy": 358,
+          "w": 39,
+          "h": 34
+        },
+        {
+          "sx": 786,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 855,
+          "sy": 349,
+          "w": 43,
+          "h": 41
+        },
+        {
+          "sx": 921,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        },
+        {
+          "sx": 989,
+          "sy": 350,
+          "w": 43,
+          "h": 40
+        },
+        {
+          "sx": 1055,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        }
+      ],
+      "frame_labels": [
+        "Row7_Col1",
+        "Row7_Col2",
+        "Row7_Col3",
+        "Row7_Col4",
+        "Row7_Col5",
+        "Row7_Col6",
+        "Row7_Col7",
+        "Row7_Col8",
+        "Row7_Col9",
+        "Row7_Col10",
+        "Row7_Col11",
+        "Row7_Col12",
+        "Row7_Col13",
+        "Row7_Col14",
+        "Row7_Col15",
+        "Row7_Col16"
+      ],
+      "group_label": "Row7",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row8",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 15,
+      "frame_names": [
+        "sonic/Row8/0",
+        "sonic/Row8/1",
+        "sonic/Row8/2",
+        "sonic/Row8/3",
+        "sonic/Row8/4",
+        "sonic/Row8/5",
+        "sonic/Row8/6",
+        "sonic/Row8/7",
+        "sonic/Row8/8",
+        "sonic/Row8/9",
+        "sonic/Row8/10",
+        "sonic/Row8/11",
+        "sonic/Row8/12",
+        "sonic/Row8/13",
+        "sonic/Row8/14"
+      ],
+      "frame_rects": [
+        {
+          "sx": 44,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 111,
+          "sy": 445,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 179,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 245,
+          "sy": 446,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 312,
+          "sy": 445,
+          "w": 34,
+          "h": 34
+        },
+        {
+          "sx": 389,
+          "sy": 444,
+          "w": 34,
+          "h": 40
+        },
+        {
+          "sx": 452,
+          "sy": 444,
+          "w": 38,
+          "h": 40
+        },
+        {
+          "sx": 514,
+          "sy": 440,
+          "w": 42,
+          "h": 44
+        },
+        {
+          "sx": 583,
+          "sy": 441,
+          "w": 37,
+          "h": 43
+        },
+        {
+          "sx": 672,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 734,
+          "sy": 448,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 795,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 863,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 945,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 1016,
+          "sy": 438,
+          "w": 28,
+          "h": 49
+        }
+      ],
+      "frame_labels": [
+        "Row8_Col1",
+        "Row8_Col2",
+        "Row8_Col3",
+        "Row8_Col4",
+        "Row8_Col5",
+        "Row8_Col6",
+        "Row8_Col7",
+        "Row8_Col8",
+        "Row8_Col9",
+        "Row8_Col10",
+        "Row8_Col11",
+        "Row8_Col12",
+        "Row8_Col13",
+        "Row8_Col14",
+        "Row8_Col15"
+      ],
+      "group_label": "Row8",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row9",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 16,
+      "frame_names": [
+        "sonic/Row9/0",
+        "sonic/Row9/1",
+        "sonic/Row9/2",
+        "sonic/Row9/3",
+        "sonic/Row9/4",
+        "sonic/Row9/5",
+        "sonic/Row9/6",
+        "sonic/Row9/7",
+        "sonic/Row9/8",
+        "sonic/Row9/9",
+        "sonic/Row9/10",
+        "sonic/Row9/11",
+        "sonic/Row9/12",
+        "sonic/Row9/13",
+        "sonic/Row9/14",
+        "sonic/Row9/15"
+      ],
+      "frame_rects": [
+        {
+          "sx": 35,
+          "sy": 540,
+          "w": 52,
+          "h": 29
+        },
+        {
+          "sx": 102,
+          "sy": 540,
+          "w": 51,
+          "h": 30
+        },
+        {
+          "sx": 184,
+          "sy": 534,
+          "w": 33,
+          "h": 40
+        },
+        {
+          "sx": 256,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 319,
+          "sy": 534,
+          "w": 32,
+          "h": 40
+        },
+        {
+          "sx": 390,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 465,
+          "sy": 529,
+          "w": 38,
+          "h": 44
+        },
+        {
+          "sx": 541,
+          "sy": 526,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 613,
+          "sy": 532,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "sx": 687,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 763,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 830,
+          "sy": 538,
+          "w": 43,
+          "h": 31
+        },
+        {
+          "sx": 901,
+          "sy": 512,
+          "w": 76,
+          "h": 54
+        },
+        {
+          "sx": 983,
+          "sy": 539,
+          "w": 44,
+          "h": 16
+        },
+        {
+          "sx": 1038,
+          "sy": 540,
+          "w": 26,
+          "h": 15
+        },
+        {
+          "sx": 1081,
+          "sy": 523,
+          "w": 39,
+          "h": 14
+        }
+      ],
+      "frame_labels": [
+        "Row9_Col1",
+        "Row9_Col2",
+        "Row9_Col3",
+        "Row9_Col4",
+        "Row9_Col5",
+        "Row9_Col6",
+        "Row9_Col7",
+        "Row9_Col8",
+        "Row9_Col9",
+        "Row9_Col10",
+        "Row9_Col11",
+        "Row9_Col12",
+        "Row9_Col13",
+        "Row9_Col14",
+        "Row9_Col15",
+        "Row9_Col16"
+      ],
+      "group_label": "Row9",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row10",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 15,
+      "frame_names": [
+        "sonic/Row10/0",
+        "sonic/Row10/1",
+        "sonic/Row10/2",
+        "sonic/Row10/3",
+        "sonic/Row10/4",
+        "sonic/Row10/5",
+        "sonic/Row10/6",
+        "sonic/Row10/7",
+        "sonic/Row10/8",
+        "sonic/Row10/9",
+        "sonic/Row10/10",
+        "sonic/Row10/11",
+        "sonic/Row10/12",
+        "sonic/Row10/13",
+        "sonic/Row10/14"
+      ],
+      "frame_rects": [
+        {
+          "sx": 45,
+          "sy": 675,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 106,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 188,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 255,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 316,
+          "sy": 674,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 383,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 450,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 517,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 611,
+          "sy": 682,
+          "w": 44,
+          "h": 26
+        },
+        {
+          "sx": 682,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 754,
+          "sy": 673,
+          "w": 26,
+          "h": 44
+        },
+        {
+          "sx": 816,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 894,
+          "sy": 669,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 968,
+          "sy": 674,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 1046,
+          "sy": 672,
+          "w": 26,
+          "h": 45
+        }
+      ],
+      "frame_labels": [
+        "Row10_Col1",
+        "Row10_Col2",
+        "Row10_Col3",
+        "Row10_Col4",
+        "Row10_Col5",
+        "Row10_Col6",
+        "Row10_Col7",
+        "Row10_Col8",
+        "Row10_Col9",
+        "Row10_Col10",
+        "Row10_Col11",
+        "Row10_Col12",
+        "Row10_Col13",
+        "Row10_Col14",
+        "Row10_Col15"
+      ],
+      "group_label": "Row10",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row11",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 5,
+      "frame_names": [
+        "sonic/Row11/0",
+        "sonic/Row11/1",
+        "sonic/Row11/2",
+        "sonic/Row11/3",
+        "sonic/Row11/4"
+      ],
+      "frame_rects": [
+        {
+          "sx": 615,
+          "sy": 763,
+          "w": 36,
+          "h": 43
+        },
+        {
+          "sx": 684,
+          "sy": 765,
+          "w": 32,
+          "h": 39
+        },
+        {
+          "sx": 754,
+          "sy": 769,
+          "w": 26,
+          "h": 24
+        },
+        {
+          "sx": 959,
+          "sy": 760,
+          "w": 37,
+          "h": 49
+        },
+        {
+          "sx": 1026,
+          "sy": 759,
+          "w": 39,
+          "h": 50
+        }
+      ],
+      "frame_labels": [
+        "Row11_Col1",
+        "Row11_Col2",
+        "Row11_Col3",
+        "Row11_Col4",
+        "Row11_Col5"
+      ],
+      "group_label": "Row11",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row12",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 1,
+      "frame_names": [
+        "sonic/Row12/0"
+      ],
+      "frame_rects": [
+        {
+          "sx": 62,
+          "sy": 798,
+          "w": 48,
+          "h": 75
+        }
+      ],
+      "frame_labels": [
+        "Row12_Col1"
+      ],
+      "group_label": "Row12",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row13",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 2,
+      "frame_names": [
+        "sonic/Row13/0",
+        "sonic/Row13/1"
+      ],
+      "frame_rects": [
+        {
+          "sx": 615,
+          "sy": 862,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 681,
+          "sy": 861,
+          "w": 49,
+          "h": 26
+        }
+      ],
+      "frame_labels": [
+        "Row13_Col1",
+        "Row13_Col2"
+      ],
+      "group_label": "Row13",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row14",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 1,
+      "frame_names": [
+        "sonic/Row14/0"
+      ],
+      "frame_rects": [
+        {
+          "sx": 586,
+          "sy": 946,
+          "w": 594,
+          "h": 181
+        }
+      ],
+      "frame_labels": [
+        "Row14_Col1"
+      ],
+      "group_label": "Row14",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row15",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 22,
+      "frame_names": [
+        "sonic/Row15/0",
+        "sonic/Row15/1",
+        "sonic/Row15/2",
+        "sonic/Row15/3",
+        "sonic/Row15/4",
+        "sonic/Row15/5",
+        "sonic/Row15/6",
+        "sonic/Row15/7",
+        "sonic/Row15/8",
+        "sonic/Row15/9",
+        "sonic/Row15/10",
+        "sonic/Row15/11",
+        "sonic/Row15/12",
+        "sonic/Row15/13",
+        "sonic/Row15/14",
+        "sonic/Row15/15",
+        "sonic/Row15/16",
+        "sonic/Row15/17",
+        "sonic/Row15/18",
+        "sonic/Row15/19",
+        "sonic/Row15/20",
+        "sonic/Row15/21"
+      ],
+      "frame_rects": [
+        {
+          "sx": 39,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 106,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 173,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 239,
+          "sy": 991,
+          "w": 52,
+          "h": 17
+        },
+        {
+          "sx": 598,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 989,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row15_Col1",
+        "Row15_Col2",
+        "Row15_Col3",
+        "Row15_Col4",
+        "Row15_Col5",
+        "Row15_Col6",
+        "Row15_Col7",
+        "Row15_Col8",
+        "Row15_Col9",
+        "Row15_Col10",
+        "Row15_Col11",
+        "Row15_Col12",
+        "Row15_Col13",
+        "Row15_Col14",
+        "Row15_Col15",
+        "Row15_Col16",
+        "Row15_Col17",
+        "Row15_Col18",
+        "Row15_Col19",
+        "Row15_Col20",
+        "Row15_Col21",
+        "Row15_Col22"
+      ],
+      "group_label": "Row15",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row16",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 18,
+      "frame_names": [
+        "sonic/Row16/0",
+        "sonic/Row16/1",
+        "sonic/Row16/2",
+        "sonic/Row16/3",
+        "sonic/Row16/4",
+        "sonic/Row16/5",
+        "sonic/Row16/6",
+        "sonic/Row16/7",
+        "sonic/Row16/8",
+        "sonic/Row16/9",
+        "sonic/Row16/10",
+        "sonic/Row16/11",
+        "sonic/Row16/12",
+        "sonic/Row16/13",
+        "sonic/Row16/14",
+        "sonic/Row16/15",
+        "sonic/Row16/16",
+        "sonic/Row16/17"
+      ],
+      "frame_rects": [
+        {
+          "sx": 598,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1006,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row16_Col1",
+        "Row16_Col2",
+        "Row16_Col3",
+        "Row16_Col4",
+        "Row16_Col5",
+        "Row16_Col6",
+        "Row16_Col7",
+        "Row16_Col8",
+        "Row16_Col9",
+        "Row16_Col10",
+        "Row16_Col11",
+        "Row16_Col12",
+        "Row16_Col13",
+        "Row16_Col14",
+        "Row16_Col15",
+        "Row16_Col16",
+        "Row16_Col17",
+        "Row16_Col18"
+      ],
+      "group_label": "Row16",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row17",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 18,
+      "frame_names": [
+        "sonic/Row17/0",
+        "sonic/Row17/1",
+        "sonic/Row17/2",
+        "sonic/Row17/3",
+        "sonic/Row17/4",
+        "sonic/Row17/5",
+        "sonic/Row17/6",
+        "sonic/Row17/7",
+        "sonic/Row17/8",
+        "sonic/Row17/9",
+        "sonic/Row17/10",
+        "sonic/Row17/11",
+        "sonic/Row17/12",
+        "sonic/Row17/13",
+        "sonic/Row17/14",
+        "sonic/Row17/15",
+        "sonic/Row17/16",
+        "sonic/Row17/17"
+      ],
+      "frame_rects": [
+        {
+          "sx": 598,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1023,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row17_Col1",
+        "Row17_Col2",
+        "Row17_Col3",
+        "Row17_Col4",
+        "Row17_Col5",
+        "Row17_Col6",
+        "Row17_Col7",
+        "Row17_Col8",
+        "Row17_Col9",
+        "Row17_Col10",
+        "Row17_Col11",
+        "Row17_Col12",
+        "Row17_Col13",
+        "Row17_Col14",
+        "Row17_Col15",
+        "Row17_Col16",
+        "Row17_Col17",
+        "Row17_Col18"
+      ],
+      "group_label": "Row17",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row18",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 9,
+      "frame_names": [
+        "sonic/Row18/0",
+        "sonic/Row18/1",
+        "sonic/Row18/2",
+        "sonic/Row18/3",
+        "sonic/Row18/4",
+        "sonic/Row18/5",
+        "sonic/Row18/6",
+        "sonic/Row18/7",
+        "sonic/Row18/8"
+      ],
+      "frame_rects": [
+        {
+          "sx": 598,
+          "sy": 1062,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row18_Col1",
+        "Row18_Col2",
+        "Row18_Col3",
+        "Row18_Col4",
+        "Row18_Col5",
+        "Row18_Col6",
+        "Row18_Col7",
+        "Row18_Col8",
+        "Row18_Col9"
+      ],
+      "group_label": "Row18",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "sonic/Row19",
+      "path": "images\\uploads\\sonic\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 24,
+      "frame_names": [
+        "sonic/Row19/0",
+        "sonic/Row19/1",
+        "sonic/Row19/2",
+        "sonic/Row19/3",
+        "sonic/Row19/4",
+        "sonic/Row19/5",
+        "sonic/Row19/6",
+        "sonic/Row19/7",
+        "sonic/Row19/8",
+        "sonic/Row19/9",
+        "sonic/Row19/10",
+        "sonic/Row19/11",
+        "sonic/Row19/12",
+        "sonic/Row19/13",
+        "sonic/Row19/14",
+        "sonic/Row19/15",
+        "sonic/Row19/16",
+        "sonic/Row19/17",
+        "sonic/Row19/18",
+        "sonic/Row19/19",
+        "sonic/Row19/20",
+        "sonic/Row19/21",
+        "sonic/Row19/22",
+        "sonic/Row19/23"
+      ],
+      "frame_rects": [
+        {
+          "sx": 42,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 104,
+          "sy": 1103,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 161,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 233,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 315,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 386,
+          "sy": 1093,
+          "w": 28,
+          "h": 49
+        },
+        {
+          "sx": 598,
+          "sy": 1079,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1096,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row19_Col1",
+        "Row19_Col2",
+        "Row19_Col3",
+        "Row19_Col4",
+        "Row19_Col5",
+        "Row19_Col6",
+        "Row19_Col7",
+        "Row19_Col8",
+        "Row19_Col9",
+        "Row19_Col10",
+        "Row19_Col11",
+        "Row19_Col12",
+        "Row19_Col13",
+        "Row19_Col14",
+        "Row19_Col15",
+        "Row19_Col16",
+        "Row19_Col17",
+        "Row19_Col18",
+        "Row19_Col19",
+        "Row19_Col20",
+        "Row19_Col21",
+        "Row19_Col22",
+        "Row19_Col23",
+        "Row19_Col24"
+      ],
+      "group_label": "Row19",
+      "source_sheet": "sonic/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/sonic-full_sprite_sheet",
+      "path": "images/uploads/Sonic_3/sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 202,
+      "frame_names": [
+        "Sonic_3/sonic-full_sprite_sheet/0",
+        "Sonic_3/sonic-full_sprite_sheet/1",
+        "Sonic_3/sonic-full_sprite_sheet/2",
+        "Sonic_3/sonic-full_sprite_sheet/3",
+        "Sonic_3/sonic-full_sprite_sheet/4",
+        "Sonic_3/sonic-full_sprite_sheet/5",
+        "Sonic_3/sonic-full_sprite_sheet/6",
+        "Sonic_3/sonic-full_sprite_sheet/7",
+        "Sonic_3/sonic-full_sprite_sheet/8",
+        "Sonic_3/sonic-full_sprite_sheet/9",
+        "Sonic_3/sonic-full_sprite_sheet/10",
+        "Sonic_3/sonic-full_sprite_sheet/11",
+        "Sonic_3/sonic-full_sprite_sheet/12",
+        "Sonic_3/sonic-full_sprite_sheet/13",
+        "Sonic_3/sonic-full_sprite_sheet/14",
+        "Sonic_3/sonic-full_sprite_sheet/15",
+        "Sonic_3/sonic-full_sprite_sheet/16",
+        "Sonic_3/sonic-full_sprite_sheet/17",
+        "Sonic_3/sonic-full_sprite_sheet/18",
+        "Sonic_3/sonic-full_sprite_sheet/19",
+        "Sonic_3/sonic-full_sprite_sheet/20",
+        "Sonic_3/sonic-full_sprite_sheet/21",
+        "Sonic_3/sonic-full_sprite_sheet/22",
+        "Sonic_3/sonic-full_sprite_sheet/23",
+        "Sonic_3/sonic-full_sprite_sheet/24",
+        "Sonic_3/sonic-full_sprite_sheet/25",
+        "Sonic_3/sonic-full_sprite_sheet/26",
+        "Sonic_3/sonic-full_sprite_sheet/27",
+        "Sonic_3/sonic-full_sprite_sheet/28",
+        "Sonic_3/sonic-full_sprite_sheet/29",
+        "Sonic_3/sonic-full_sprite_sheet/30",
+        "Sonic_3/sonic-full_sprite_sheet/31",
+        "Sonic_3/sonic-full_sprite_sheet/32",
+        "Sonic_3/sonic-full_sprite_sheet/33",
+        "Sonic_3/sonic-full_sprite_sheet/34",
+        "Sonic_3/sonic-full_sprite_sheet/35",
+        "Sonic_3/sonic-full_sprite_sheet/36",
+        "Sonic_3/sonic-full_sprite_sheet/37",
+        "Sonic_3/sonic-full_sprite_sheet/38",
+        "Sonic_3/sonic-full_sprite_sheet/39",
+        "Sonic_3/sonic-full_sprite_sheet/40",
+        "Sonic_3/sonic-full_sprite_sheet/41",
+        "Sonic_3/sonic-full_sprite_sheet/42",
+        "Sonic_3/sonic-full_sprite_sheet/43",
+        "Sonic_3/sonic-full_sprite_sheet/44",
+        "Sonic_3/sonic-full_sprite_sheet/45",
+        "Sonic_3/sonic-full_sprite_sheet/46",
+        "Sonic_3/sonic-full_sprite_sheet/47",
+        "Sonic_3/sonic-full_sprite_sheet/48",
+        "Sonic_3/sonic-full_sprite_sheet/49",
+        "Sonic_3/sonic-full_sprite_sheet/50",
+        "Sonic_3/sonic-full_sprite_sheet/51",
+        "Sonic_3/sonic-full_sprite_sheet/52",
+        "Sonic_3/sonic-full_sprite_sheet/53",
+        "Sonic_3/sonic-full_sprite_sheet/54",
+        "Sonic_3/sonic-full_sprite_sheet/55",
+        "Sonic_3/sonic-full_sprite_sheet/56",
+        "Sonic_3/sonic-full_sprite_sheet/57",
+        "Sonic_3/sonic-full_sprite_sheet/58",
+        "Sonic_3/sonic-full_sprite_sheet/59",
+        "Sonic_3/sonic-full_sprite_sheet/60",
+        "Sonic_3/sonic-full_sprite_sheet/61",
+        "Sonic_3/sonic-full_sprite_sheet/62",
+        "Sonic_3/sonic-full_sprite_sheet/63",
+        "Sonic_3/sonic-full_sprite_sheet/64",
+        "Sonic_3/sonic-full_sprite_sheet/65",
+        "Sonic_3/sonic-full_sprite_sheet/66",
+        "Sonic_3/sonic-full_sprite_sheet/67",
+        "Sonic_3/sonic-full_sprite_sheet/68",
+        "Sonic_3/sonic-full_sprite_sheet/69",
+        "Sonic_3/sonic-full_sprite_sheet/70",
+        "Sonic_3/sonic-full_sprite_sheet/71",
+        "Sonic_3/sonic-full_sprite_sheet/72",
+        "Sonic_3/sonic-full_sprite_sheet/73",
+        "Sonic_3/sonic-full_sprite_sheet/74",
+        "Sonic_3/sonic-full_sprite_sheet/75",
+        "Sonic_3/sonic-full_sprite_sheet/76",
+        "Sonic_3/sonic-full_sprite_sheet/77",
+        "Sonic_3/sonic-full_sprite_sheet/78",
+        "Sonic_3/sonic-full_sprite_sheet/79",
+        "Sonic_3/sonic-full_sprite_sheet/80",
+        "Sonic_3/sonic-full_sprite_sheet/81",
+        "Sonic_3/sonic-full_sprite_sheet/82",
+        "Sonic_3/sonic-full_sprite_sheet/83",
+        "Sonic_3/sonic-full_sprite_sheet/84",
+        "Sonic_3/sonic-full_sprite_sheet/85",
+        "Sonic_3/sonic-full_sprite_sheet/86",
+        "Sonic_3/sonic-full_sprite_sheet/87",
+        "Sonic_3/sonic-full_sprite_sheet/88",
+        "Sonic_3/sonic-full_sprite_sheet/89",
+        "Sonic_3/sonic-full_sprite_sheet/90",
+        "Sonic_3/sonic-full_sprite_sheet/91",
+        "Sonic_3/sonic-full_sprite_sheet/92",
+        "Sonic_3/sonic-full_sprite_sheet/93",
+        "Sonic_3/sonic-full_sprite_sheet/94",
+        "Sonic_3/sonic-full_sprite_sheet/95",
+        "Sonic_3/sonic-full_sprite_sheet/96",
+        "Sonic_3/sonic-full_sprite_sheet/97",
+        "Sonic_3/sonic-full_sprite_sheet/98",
+        "Sonic_3/sonic-full_sprite_sheet/99",
+        "Sonic_3/sonic-full_sprite_sheet/100",
+        "Sonic_3/sonic-full_sprite_sheet/101",
+        "Sonic_3/sonic-full_sprite_sheet/102",
+        "Sonic_3/sonic-full_sprite_sheet/103",
+        "Sonic_3/sonic-full_sprite_sheet/104",
+        "Sonic_3/sonic-full_sprite_sheet/105",
+        "Sonic_3/sonic-full_sprite_sheet/106",
+        "Sonic_3/sonic-full_sprite_sheet/107",
+        "Sonic_3/sonic-full_sprite_sheet/108",
+        "Sonic_3/sonic-full_sprite_sheet/109",
+        "Sonic_3/sonic-full_sprite_sheet/110",
+        "Sonic_3/sonic-full_sprite_sheet/111",
+        "Sonic_3/sonic-full_sprite_sheet/112",
+        "Sonic_3/sonic-full_sprite_sheet/113",
+        "Sonic_3/sonic-full_sprite_sheet/114",
+        "Sonic_3/sonic-full_sprite_sheet/115",
+        "Sonic_3/sonic-full_sprite_sheet/116",
+        "Sonic_3/sonic-full_sprite_sheet/117",
+        "Sonic_3/sonic-full_sprite_sheet/118",
+        "Sonic_3/sonic-full_sprite_sheet/119",
+        "Sonic_3/sonic-full_sprite_sheet/120",
+        "Sonic_3/sonic-full_sprite_sheet/121",
+        "Sonic_3/sonic-full_sprite_sheet/122",
+        "Sonic_3/sonic-full_sprite_sheet/123",
+        "Sonic_3/sonic-full_sprite_sheet/124",
+        "Sonic_3/sonic-full_sprite_sheet/125",
+        "Sonic_3/sonic-full_sprite_sheet/126",
+        "Sonic_3/sonic-full_sprite_sheet/127",
+        "Sonic_3/sonic-full_sprite_sheet/128",
+        "Sonic_3/sonic-full_sprite_sheet/129",
+        "Sonic_3/sonic-full_sprite_sheet/130",
+        "Sonic_3/sonic-full_sprite_sheet/131",
+        "Sonic_3/sonic-full_sprite_sheet/132",
+        "Sonic_3/sonic-full_sprite_sheet/133",
+        "Sonic_3/sonic-full_sprite_sheet/134",
+        "Sonic_3/sonic-full_sprite_sheet/135",
+        "Sonic_3/sonic-full_sprite_sheet/136",
+        "Sonic_3/sonic-full_sprite_sheet/137",
+        "Sonic_3/sonic-full_sprite_sheet/138",
+        "Sonic_3/sonic-full_sprite_sheet/139",
+        "Sonic_3/sonic-full_sprite_sheet/140",
+        "Sonic_3/sonic-full_sprite_sheet/141",
+        "Sonic_3/sonic-full_sprite_sheet/142",
+        "Sonic_3/sonic-full_sprite_sheet/143",
+        "Sonic_3/sonic-full_sprite_sheet/144",
+        "Sonic_3/sonic-full_sprite_sheet/145",
+        "Sonic_3/sonic-full_sprite_sheet/146",
+        "Sonic_3/sonic-full_sprite_sheet/147",
+        "Sonic_3/sonic-full_sprite_sheet/148",
+        "Sonic_3/sonic-full_sprite_sheet/149",
+        "Sonic_3/sonic-full_sprite_sheet/150",
+        "Sonic_3/sonic-full_sprite_sheet/151",
+        "Sonic_3/sonic-full_sprite_sheet/152",
+        "Sonic_3/sonic-full_sprite_sheet/153",
+        "Sonic_3/sonic-full_sprite_sheet/154",
+        "Sonic_3/sonic-full_sprite_sheet/155",
+        "Sonic_3/sonic-full_sprite_sheet/156",
+        "Sonic_3/sonic-full_sprite_sheet/157",
+        "Sonic_3/sonic-full_sprite_sheet/158",
+        "Sonic_3/sonic-full_sprite_sheet/159",
+        "Sonic_3/sonic-full_sprite_sheet/160",
+        "Sonic_3/sonic-full_sprite_sheet/161",
+        "Sonic_3/sonic-full_sprite_sheet/162",
+        "Sonic_3/sonic-full_sprite_sheet/163",
+        "Sonic_3/sonic-full_sprite_sheet/164",
+        "Sonic_3/sonic-full_sprite_sheet/165",
+        "Sonic_3/sonic-full_sprite_sheet/166",
+        "Sonic_3/sonic-full_sprite_sheet/167",
+        "Sonic_3/sonic-full_sprite_sheet/168",
+        "Sonic_3/sonic-full_sprite_sheet/169",
+        "Sonic_3/sonic-full_sprite_sheet/170",
+        "Sonic_3/sonic-full_sprite_sheet/171",
+        "Sonic_3/sonic-full_sprite_sheet/172",
+        "Sonic_3/sonic-full_sprite_sheet/173",
+        "Sonic_3/sonic-full_sprite_sheet/174",
+        "Sonic_3/sonic-full_sprite_sheet/175",
+        "Sonic_3/sonic-full_sprite_sheet/176",
+        "Sonic_3/sonic-full_sprite_sheet/177",
+        "Sonic_3/sonic-full_sprite_sheet/178",
+        "Sonic_3/sonic-full_sprite_sheet/179",
+        "Sonic_3/sonic-full_sprite_sheet/180",
+        "Sonic_3/sonic-full_sprite_sheet/181",
+        "Sonic_3/sonic-full_sprite_sheet/182",
+        "Sonic_3/sonic-full_sprite_sheet/183",
+        "Sonic_3/sonic-full_sprite_sheet/184",
+        "Sonic_3/sonic-full_sprite_sheet/185",
+        "Sonic_3/sonic-full_sprite_sheet/186",
+        "Sonic_3/sonic-full_sprite_sheet/187",
+        "Sonic_3/sonic-full_sprite_sheet/188",
+        "Sonic_3/sonic-full_sprite_sheet/189",
+        "Sonic_3/sonic-full_sprite_sheet/190",
+        "Sonic_3/sonic-full_sprite_sheet/191",
+        "Sonic_3/sonic-full_sprite_sheet/192",
+        "Sonic_3/sonic-full_sprite_sheet/193",
+        "Sonic_3/sonic-full_sprite_sheet/194",
+        "Sonic_3/sonic-full_sprite_sheet/195",
+        "Sonic_3/sonic-full_sprite_sheet/196",
+        "Sonic_3/sonic-full_sprite_sheet/197",
+        "Sonic_3/sonic-full_sprite_sheet/198",
+        "Sonic_3/sonic-full_sprite_sheet/199",
+        "Sonic_3/sonic-full_sprite_sheet/200",
+        "Sonic_3/sonic-full_sprite_sheet/201"
+      ],
+      "frame_rects": [
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 324,
+          "h": 228
+        },
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 1166,
+          "h": 1147
+        },
+        {
+          "sx": 873,
+          "sy": 60,
+          "w": 223,
+          "h": 74
+        },
+        {
+          "sx": 379,
+          "sy": 79,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 457,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 524,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 591,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 658,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 732,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 809,
+          "sy": 92,
+          "w": 33,
+          "h": 30
+        },
+        {
+          "sx": 382,
+          "sy": 171,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 444,
+          "sy": 169,
+          "w": 40,
+          "h": 41
+        },
+        {
+          "sx": 511,
+          "sy": 170,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 583,
+          "sy": 171,
+          "w": 31,
+          "h": 41
+        },
+        {
+          "sx": 646,
+          "sy": 169,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 718,
+          "sy": 170,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 785,
+          "sy": 169,
+          "w": 38,
+          "h": 41
+        },
+        {
+          "sx": 850,
+          "sy": 167,
+          "w": 40,
+          "h": 47
+        },
+        {
+          "sx": 918,
+          "sy": 168,
+          "w": 39,
+          "h": 44
+        },
+        {
+          "sx": 984,
+          "sy": 171,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 169,
+          "w": 42,
+          "h": 47
+        },
+        {
+          "sx": 1117,
+          "sy": 170,
+          "w": 45,
+          "h": 38
+        },
+        {
+          "sx": 378,
+          "sy": 246,
+          "w": 41,
+          "h": 28
+        },
+        {
+          "sx": 443,
+          "sy": 240,
+          "w": 41,
+          "h": 40
+        },
+        {
+          "sx": 511,
+          "sy": 246,
+          "w": 42,
+          "h": 33
+        },
+        {
+          "sx": 579,
+          "sy": 244,
+          "w": 41,
+          "h": 31
+        },
+        {
+          "sx": 644,
+          "sy": 238,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 712,
+          "sy": 239,
+          "w": 42,
+          "h": 36
+        },
+        {
+          "sx": 781,
+          "sy": 239,
+          "w": 41,
+          "h": 38
+        },
+        {
+          "sx": 846,
+          "sy": 239,
+          "w": 47,
+          "h": 40
+        },
+        {
+          "sx": 914,
+          "sy": 239,
+          "w": 44,
+          "h": 39
+        },
+        {
+          "sx": 984,
+          "sy": 237,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 239,
+          "w": 47,
+          "h": 42
+        },
+        {
+          "sx": 1117,
+          "sy": 235,
+          "w": 38,
+          "h": 45
+        },
+        {
+          "sx": 18,
+          "sy": 276,
+          "w": 52,
+          "h": 15
+        },
+        {
+          "sx": 69,
+          "sy": 276,
+          "w": 35,
+          "h": 16
+        },
+        {
+          "sx": 103,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 139,
+          "sy": 276,
+          "w": 35,
+          "h": 15
+        },
+        {
+          "sx": 214,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 274,
+          "sy": 276,
+          "w": 60,
+          "h": 15
+        },
+        {
+          "sx": 40,
+          "sy": 355,
+          "w": 35,
+          "h": 39
+        },
+        {
+          "sx": 107,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 175,
+          "sy": 355,
+          "w": 34,
+          "h": 39
+        },
+        {
+          "sx": 241,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 314,
+          "sy": 353,
+          "w": 41,
+          "h": 43
+        },
+        {
+          "sx": 382,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 448,
+          "sy": 353,
+          "w": 40,
+          "h": 43
+        },
+        {
+          "sx": 516,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 586,
+          "sy": 358,
+          "w": 39,
+          "h": 35
+        },
+        {
+          "sx": 652,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 720,
+          "sy": 358,
+          "w": 39,
+          "h": 34
+        },
+        {
+          "sx": 786,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 855,
+          "sy": 349,
+          "w": 43,
+          "h": 41
+        },
+        {
+          "sx": 921,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        },
+        {
+          "sx": 989,
+          "sy": 350,
+          "w": 43,
+          "h": 40
+        },
+        {
+          "sx": 1055,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        },
+        {
+          "sx": 44,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 111,
+          "sy": 445,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 179,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 245,
+          "sy": 446,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 312,
+          "sy": 445,
+          "w": 34,
+          "h": 34
+        },
+        {
+          "sx": 389,
+          "sy": 444,
+          "w": 34,
+          "h": 40
+        },
+        {
+          "sx": 452,
+          "sy": 444,
+          "w": 38,
+          "h": 40
+        },
+        {
+          "sx": 514,
+          "sy": 440,
+          "w": 42,
+          "h": 44
+        },
+        {
+          "sx": 583,
+          "sy": 441,
+          "w": 37,
+          "h": 43
+        },
+        {
+          "sx": 672,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 734,
+          "sy": 448,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 795,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 863,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 945,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 1016,
+          "sy": 438,
+          "w": 28,
+          "h": 49
+        },
+        {
+          "sx": 35,
+          "sy": 540,
+          "w": 52,
+          "h": 29
+        },
+        {
+          "sx": 102,
+          "sy": 540,
+          "w": 51,
+          "h": 30
+        },
+        {
+          "sx": 184,
+          "sy": 534,
+          "w": 33,
+          "h": 40
+        },
+        {
+          "sx": 256,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 319,
+          "sy": 534,
+          "w": 32,
+          "h": 40
+        },
+        {
+          "sx": 390,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 465,
+          "sy": 529,
+          "w": 38,
+          "h": 44
+        },
+        {
+          "sx": 541,
+          "sy": 526,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 613,
+          "sy": 532,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "sx": 687,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 763,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 830,
+          "sy": 538,
+          "w": 43,
+          "h": 31
+        },
+        {
+          "sx": 901,
+          "sy": 512,
+          "w": 76,
+          "h": 54
+        },
+        {
+          "sx": 983,
+          "sy": 539,
+          "w": 44,
+          "h": 16
+        },
+        {
+          "sx": 1038,
+          "sy": 540,
+          "w": 26,
+          "h": 15
+        },
+        {
+          "sx": 1081,
+          "sy": 523,
+          "w": 39,
+          "h": 14
+        },
+        {
+          "sx": 45,
+          "sy": 675,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 106,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 188,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 255,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 316,
+          "sy": 674,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 383,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 450,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 517,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 611,
+          "sy": 682,
+          "w": 44,
+          "h": 26
+        },
+        {
+          "sx": 682,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 754,
+          "sy": 673,
+          "w": 26,
+          "h": 44
+        },
+        {
+          "sx": 816,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 894,
+          "sy": 669,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 968,
+          "sy": 674,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 1046,
+          "sy": 672,
+          "w": 26,
+          "h": 45
+        },
+        {
+          "sx": 615,
+          "sy": 763,
+          "w": 36,
+          "h": 43
+        },
+        {
+          "sx": 684,
+          "sy": 765,
+          "w": 32,
+          "h": 39
+        },
+        {
+          "sx": 754,
+          "sy": 769,
+          "w": 26,
+          "h": 24
+        },
+        {
+          "sx": 959,
+          "sy": 760,
+          "w": 37,
+          "h": 49
+        },
+        {
+          "sx": 1026,
+          "sy": 759,
+          "w": 39,
+          "h": 50
+        },
+        {
+          "sx": 62,
+          "sy": 798,
+          "w": 48,
+          "h": 75
+        },
+        {
+          "sx": 615,
+          "sy": 862,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 681,
+          "sy": 861,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 586,
+          "sy": 946,
+          "w": 594,
+          "h": 181
+        },
+        {
+          "sx": 39,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 106,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 173,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 239,
+          "sy": 991,
+          "w": 52,
+          "h": 17
+        },
+        {
+          "sx": 598,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 989,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1006,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1023,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1062,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 42,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 104,
+          "sy": 1103,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 161,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 233,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 315,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 386,
+          "sy": 1093,
+          "w": 28,
+          "h": 49
+        },
+        {
+          "sx": 598,
+          "sy": 1079,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1096,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row1_Col1",
+        "Row1_Col2",
+        "Row2_Col1",
+        "Row3_Col1",
+        "Row3_Col2",
+        "Row3_Col3",
+        "Row3_Col4",
+        "Row3_Col5",
+        "Row3_Col6",
+        "Row3_Col7",
+        "Row4_Col1",
+        "Row4_Col2",
+        "Row4_Col3",
+        "Row4_Col4",
+        "Row4_Col5",
+        "Row4_Col6",
+        "Row4_Col7",
+        "Row4_Col8",
+        "Row4_Col9",
+        "Row4_Col10",
+        "Row4_Col11",
+        "Row4_Col12",
+        "Row5_Col1",
+        "Row5_Col2",
+        "Row5_Col3",
+        "Row5_Col4",
+        "Row5_Col5",
+        "Row5_Col6",
+        "Row5_Col7",
+        "Row5_Col8",
+        "Row5_Col9",
+        "Row5_Col10",
+        "Row5_Col11",
+        "Row5_Col12",
+        "Row6_Col1",
+        "Row6_Col2",
+        "Row6_Col3",
+        "Row6_Col4",
+        "Row6_Col5",
+        "Row6_Col6",
+        "Row7_Col1",
+        "Row7_Col2",
+        "Row7_Col3",
+        "Row7_Col4",
+        "Row7_Col5",
+        "Row7_Col6",
+        "Row7_Col7",
+        "Row7_Col8",
+        "Row7_Col9",
+        "Row7_Col10",
+        "Row7_Col11",
+        "Row7_Col12",
+        "Row7_Col13",
+        "Row7_Col14",
+        "Row7_Col15",
+        "Row7_Col16",
+        "Row8_Col1",
+        "Row8_Col2",
+        "Row8_Col3",
+        "Row8_Col4",
+        "Row8_Col5",
+        "Row8_Col6",
+        "Row8_Col7",
+        "Row8_Col8",
+        "Row8_Col9",
+        "Row8_Col10",
+        "Row8_Col11",
+        "Row8_Col12",
+        "Row8_Col13",
+        "Row8_Col14",
+        "Row8_Col15",
+        "Row9_Col1",
+        "Row9_Col2",
+        "Row9_Col3",
+        "Row9_Col4",
+        "Row9_Col5",
+        "Row9_Col6",
+        "Row9_Col7",
+        "Row9_Col8",
+        "Row9_Col9",
+        "Row9_Col10",
+        "Row9_Col11",
+        "Row9_Col12",
+        "Row9_Col13",
+        "Row9_Col14",
+        "Row9_Col15",
+        "Row9_Col16",
+        "Row10_Col1",
+        "Row10_Col2",
+        "Row10_Col3",
+        "Row10_Col4",
+        "Row10_Col5",
+        "Row10_Col6",
+        "Row10_Col7",
+        "Row10_Col8",
+        "Row10_Col9",
+        "Row10_Col10",
+        "Row10_Col11",
+        "Row10_Col12",
+        "Row10_Col13",
+        "Row10_Col14",
+        "Row10_Col15",
+        "Row11_Col1",
+        "Row11_Col2",
+        "Row11_Col3",
+        "Row11_Col4",
+        "Row11_Col5",
+        "Row12_Col1",
+        "Row13_Col1",
+        "Row13_Col2",
+        "Row14_Col1",
+        "Row15_Col1",
+        "Row15_Col2",
+        "Row15_Col3",
+        "Row15_Col4",
+        "Row15_Col5",
+        "Row15_Col6",
+        "Row15_Col7",
+        "Row15_Col8",
+        "Row15_Col9",
+        "Row15_Col10",
+        "Row15_Col11",
+        "Row15_Col12",
+        "Row15_Col13",
+        "Row15_Col14",
+        "Row15_Col15",
+        "Row15_Col16",
+        "Row15_Col17",
+        "Row15_Col18",
+        "Row15_Col19",
+        "Row15_Col20",
+        "Row15_Col21",
+        "Row15_Col22",
+        "Row16_Col1",
+        "Row16_Col2",
+        "Row16_Col3",
+        "Row16_Col4",
+        "Row16_Col5",
+        "Row16_Col6",
+        "Row16_Col7",
+        "Row16_Col8",
+        "Row16_Col9",
+        "Row16_Col10",
+        "Row16_Col11",
+        "Row16_Col12",
+        "Row16_Col13",
+        "Row16_Col14",
+        "Row16_Col15",
+        "Row16_Col16",
+        "Row16_Col17",
+        "Row16_Col18",
+        "Row17_Col1",
+        "Row17_Col2",
+        "Row17_Col3",
+        "Row17_Col4",
+        "Row17_Col5",
+        "Row17_Col6",
+        "Row17_Col7",
+        "Row17_Col8",
+        "Row17_Col9",
+        "Row17_Col10",
+        "Row17_Col11",
+        "Row17_Col12",
+        "Row17_Col13",
+        "Row17_Col14",
+        "Row17_Col15",
+        "Row17_Col16",
+        "Row17_Col17",
+        "Row17_Col18",
+        "Row18_Col1",
+        "Row18_Col2",
+        "Row18_Col3",
+        "Row18_Col4",
+        "Row18_Col5",
+        "Row18_Col6",
+        "Row18_Col7",
+        "Row18_Col8",
+        "Row18_Col9",
+        "Row19_Col1",
+        "Row19_Col2",
+        "Row19_Col3",
+        "Row19_Col4",
+        "Row19_Col5",
+        "Row19_Col6",
+        "Row19_Col7",
+        "Row19_Col8",
+        "Row19_Col9",
+        "Row19_Col10",
+        "Row19_Col11",
+        "Row19_Col12",
+        "Row19_Col13",
+        "Row19_Col14",
+        "Row19_Col15",
+        "Row19_Col16",
+        "Row19_Col17",
+        "Row19_Col18",
+        "Row19_Col19",
+        "Row19_Col20",
+        "Row19_Col21",
+        "Row19_Col22",
+        "Row19_Col23",
+        "Row19_Col24"
+      ],
+      "row_groups": [
+        {
+          "row": 1,
+          "label": "Row1",
+          "indices": [
+            0,
+            1
+          ]
+        },
+        {
+          "row": 2,
+          "label": "Row2",
+          "indices": [
+            2
+          ]
+        },
+        {
+          "row": 3,
+          "label": "Row3",
+          "indices": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ]
+        },
+        {
+          "row": 4,
+          "label": "Row4",
+          "indices": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21
+          ]
+        },
+        {
+          "row": 5,
+          "label": "Row5",
+          "indices": [
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33
+          ]
+        },
+        {
+          "row": 6,
+          "label": "Row6",
+          "indices": [
+            34,
+            35,
+            36,
+            37,
+            38,
+            39
+          ]
+        },
+        {
+          "row": 7,
+          "label": "Row7",
+          "indices": [
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55
+          ]
+        },
+        {
+          "row": 8,
+          "label": "Row8",
+          "indices": [
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70
+          ]
+        },
+        {
+          "row": 9,
+          "label": "Row9",
+          "indices": [
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86
+          ]
+        },
+        {
+          "row": 10,
+          "label": "Row10",
+          "indices": [
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101
+          ]
+        },
+        {
+          "row": 11,
+          "label": "Row11",
+          "indices": [
+            102,
+            103,
+            104,
+            105,
+            106
+          ]
+        },
+        {
+          "row": 12,
+          "label": "Row12",
+          "indices": [
+            107
+          ]
+        },
+        {
+          "row": 13,
+          "label": "Row13",
+          "indices": [
+            108,
+            109
+          ]
+        },
+        {
+          "row": 14,
+          "label": "Row14",
+          "indices": [
+            110
+          ]
+        },
+        {
+          "row": 15,
+          "label": "Row15",
+          "indices": [
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132
+          ]
+        },
+        {
+          "row": 16,
+          "label": "Row16",
+          "indices": [
+            133,
+            134,
+            135,
+            136,
+            137,
+            138,
+            139,
+            140,
+            141,
+            142,
+            143,
+            144,
+            145,
+            146,
+            147,
+            148,
+            149,
+            150
+          ]
+        },
+        {
+          "row": 17,
+          "label": "Row17",
+          "indices": [
+            151,
+            152,
+            153,
+            154,
+            155,
+            156,
+            157,
+            158,
+            159,
+            160,
+            161,
+            162,
+            163,
+            164,
+            165,
+            166,
+            167,
+            168
+          ]
+        },
+        {
+          "row": 18,
+          "label": "Row18",
+          "indices": [
+            169,
+            170,
+            171,
+            172,
+            173,
+            174,
+            175,
+            176,
+            177
+          ]
+        },
+        {
+          "row": 19,
+          "label": "Row19",
+          "indices": [
+            178,
+            179,
+            180,
+            181,
+            182,
+            183,
+            184,
+            185,
+            186,
+            187,
+            188,
+            189,
+            190,
+            191,
+            192,
+            193,
+            194,
+            195,
+            196,
+            197,
+            198,
+            199,
+            200,
+            201
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Sonic_3/Row1",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 2,
+      "frame_names": [
+        "Sonic_3/Row1/0",
+        "Sonic_3/Row1/1"
+      ],
+      "frame_rects": [
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 324,
+          "h": 228
+        },
+        {
+          "sx": 14,
+          "sy": 14,
+          "w": 1166,
+          "h": 1147
+        }
+      ],
+      "frame_labels": [
+        "Row1_Col1",
+        "Row1_Col2"
+      ],
+      "group_label": "Row1",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row2",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 1,
+      "frame_names": [
+        "Sonic_3/Row2/0"
+      ],
+      "frame_rects": [
+        {
+          "sx": 873,
+          "sy": 60,
+          "w": 223,
+          "h": 74
+        }
+      ],
+      "frame_labels": [
+        "Row2_Col1"
+      ],
+      "group_label": "Row2",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row3",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 7,
+      "frame_names": [
+        "Sonic_3/Row3/0",
+        "Sonic_3/Row3/1",
+        "Sonic_3/Row3/2",
+        "Sonic_3/Row3/3",
+        "Sonic_3/Row3/4",
+        "Sonic_3/Row3/5",
+        "Sonic_3/Row3/6"
+      ],
+      "frame_rects": [
+        {
+          "sx": 379,
+          "sy": 79,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 457,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 524,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 591,
+          "sy": 80,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 658,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 732,
+          "sy": 80,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 809,
+          "sy": 92,
+          "w": 33,
+          "h": 30
+        }
+      ],
+      "frame_labels": [
+        "Row3_Col1",
+        "Row3_Col2",
+        "Row3_Col3",
+        "Row3_Col4",
+        "Row3_Col5",
+        "Row3_Col6",
+        "Row3_Col7"
+      ],
+      "group_label": "Row3",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row4",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 12,
+      "frame_names": [
+        "Sonic_3/Row4/0",
+        "Sonic_3/Row4/1",
+        "Sonic_3/Row4/2",
+        "Sonic_3/Row4/3",
+        "Sonic_3/Row4/4",
+        "Sonic_3/Row4/5",
+        "Sonic_3/Row4/6",
+        "Sonic_3/Row4/7",
+        "Sonic_3/Row4/8",
+        "Sonic_3/Row4/9",
+        "Sonic_3/Row4/10",
+        "Sonic_3/Row4/11"
+      ],
+      "frame_rects": [
+        {
+          "sx": 382,
+          "sy": 171,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 444,
+          "sy": 169,
+          "w": 40,
+          "h": 41
+        },
+        {
+          "sx": 511,
+          "sy": 170,
+          "w": 33,
+          "h": 42
+        },
+        {
+          "sx": 583,
+          "sy": 171,
+          "w": 31,
+          "h": 41
+        },
+        {
+          "sx": 646,
+          "sy": 169,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 718,
+          "sy": 170,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 785,
+          "sy": 169,
+          "w": 38,
+          "h": 41
+        },
+        {
+          "sx": 850,
+          "sy": 167,
+          "w": 40,
+          "h": 47
+        },
+        {
+          "sx": 918,
+          "sy": 168,
+          "w": 39,
+          "h": 44
+        },
+        {
+          "sx": 984,
+          "sy": 171,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 169,
+          "w": 42,
+          "h": 47
+        },
+        {
+          "sx": 1117,
+          "sy": 170,
+          "w": 45,
+          "h": 38
+        }
+      ],
+      "frame_labels": [
+        "Row4_Col1",
+        "Row4_Col2",
+        "Row4_Col3",
+        "Row4_Col4",
+        "Row4_Col5",
+        "Row4_Col6",
+        "Row4_Col7",
+        "Row4_Col8",
+        "Row4_Col9",
+        "Row4_Col10",
+        "Row4_Col11",
+        "Row4_Col12"
+      ],
+      "group_label": "Row4",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row5",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 12,
+      "frame_names": [
+        "Sonic_3/Row5/0",
+        "Sonic_3/Row5/1",
+        "Sonic_3/Row5/2",
+        "Sonic_3/Row5/3",
+        "Sonic_3/Row5/4",
+        "Sonic_3/Row5/5",
+        "Sonic_3/Row5/6",
+        "Sonic_3/Row5/7",
+        "Sonic_3/Row5/8",
+        "Sonic_3/Row5/9",
+        "Sonic_3/Row5/10",
+        "Sonic_3/Row5/11"
+      ],
+      "frame_rects": [
+        {
+          "sx": 378,
+          "sy": 246,
+          "w": 41,
+          "h": 28
+        },
+        {
+          "sx": 443,
+          "sy": 240,
+          "w": 41,
+          "h": 40
+        },
+        {
+          "sx": 511,
+          "sy": 246,
+          "w": 42,
+          "h": 33
+        },
+        {
+          "sx": 579,
+          "sy": 244,
+          "w": 41,
+          "h": 31
+        },
+        {
+          "sx": 644,
+          "sy": 238,
+          "w": 41,
+          "h": 41
+        },
+        {
+          "sx": 712,
+          "sy": 239,
+          "w": 42,
+          "h": 36
+        },
+        {
+          "sx": 781,
+          "sy": 239,
+          "w": 41,
+          "h": 38
+        },
+        {
+          "sx": 846,
+          "sy": 239,
+          "w": 47,
+          "h": 40
+        },
+        {
+          "sx": 914,
+          "sy": 239,
+          "w": 44,
+          "h": 39
+        },
+        {
+          "sx": 984,
+          "sy": 237,
+          "w": 42,
+          "h": 42
+        },
+        {
+          "sx": 1049,
+          "sy": 239,
+          "w": 47,
+          "h": 42
+        },
+        {
+          "sx": 1117,
+          "sy": 235,
+          "w": 38,
+          "h": 45
+        }
+      ],
+      "frame_labels": [
+        "Row5_Col1",
+        "Row5_Col2",
+        "Row5_Col3",
+        "Row5_Col4",
+        "Row5_Col5",
+        "Row5_Col6",
+        "Row5_Col7",
+        "Row5_Col8",
+        "Row5_Col9",
+        "Row5_Col10",
+        "Row5_Col11",
+        "Row5_Col12"
+      ],
+      "group_label": "Row5",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row6",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 6,
+      "frame_names": [
+        "Sonic_3/Row6/0",
+        "Sonic_3/Row6/1",
+        "Sonic_3/Row6/2",
+        "Sonic_3/Row6/3",
+        "Sonic_3/Row6/4",
+        "Sonic_3/Row6/5"
+      ],
+      "frame_rects": [
+        {
+          "sx": 18,
+          "sy": 276,
+          "w": 52,
+          "h": 15
+        },
+        {
+          "sx": 69,
+          "sy": 276,
+          "w": 35,
+          "h": 16
+        },
+        {
+          "sx": 103,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 139,
+          "sy": 276,
+          "w": 35,
+          "h": 15
+        },
+        {
+          "sx": 214,
+          "sy": 276,
+          "w": 37,
+          "h": 15
+        },
+        {
+          "sx": 274,
+          "sy": 276,
+          "w": 60,
+          "h": 15
+        }
+      ],
+      "frame_labels": [
+        "Row6_Col1",
+        "Row6_Col2",
+        "Row6_Col3",
+        "Row6_Col4",
+        "Row6_Col5",
+        "Row6_Col6"
+      ],
+      "group_label": "Row6",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row7",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 16,
+      "frame_names": [
+        "Sonic_3/Row7/0",
+        "Sonic_3/Row7/1",
+        "Sonic_3/Row7/2",
+        "Sonic_3/Row7/3",
+        "Sonic_3/Row7/4",
+        "Sonic_3/Row7/5",
+        "Sonic_3/Row7/6",
+        "Sonic_3/Row7/7",
+        "Sonic_3/Row7/8",
+        "Sonic_3/Row7/9",
+        "Sonic_3/Row7/10",
+        "Sonic_3/Row7/11",
+        "Sonic_3/Row7/12",
+        "Sonic_3/Row7/13",
+        "Sonic_3/Row7/14",
+        "Sonic_3/Row7/15"
+      ],
+      "frame_rects": [
+        {
+          "sx": 40,
+          "sy": 355,
+          "w": 35,
+          "h": 39
+        },
+        {
+          "sx": 107,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 175,
+          "sy": 355,
+          "w": 34,
+          "h": 39
+        },
+        {
+          "sx": 241,
+          "sy": 354,
+          "w": 35,
+          "h": 40
+        },
+        {
+          "sx": 314,
+          "sy": 353,
+          "w": 41,
+          "h": 43
+        },
+        {
+          "sx": 382,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 448,
+          "sy": 353,
+          "w": 40,
+          "h": 43
+        },
+        {
+          "sx": 516,
+          "sy": 352,
+          "w": 40,
+          "h": 44
+        },
+        {
+          "sx": 586,
+          "sy": 358,
+          "w": 39,
+          "h": 35
+        },
+        {
+          "sx": 652,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 720,
+          "sy": 358,
+          "w": 39,
+          "h": 34
+        },
+        {
+          "sx": 786,
+          "sy": 358,
+          "w": 40,
+          "h": 35
+        },
+        {
+          "sx": 855,
+          "sy": 349,
+          "w": 43,
+          "h": 41
+        },
+        {
+          "sx": 921,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        },
+        {
+          "sx": 989,
+          "sy": 350,
+          "w": 43,
+          "h": 40
+        },
+        {
+          "sx": 1055,
+          "sy": 349,
+          "w": 44,
+          "h": 40
+        }
+      ],
+      "frame_labels": [
+        "Row7_Col1",
+        "Row7_Col2",
+        "Row7_Col3",
+        "Row7_Col4",
+        "Row7_Col5",
+        "Row7_Col6",
+        "Row7_Col7",
+        "Row7_Col8",
+        "Row7_Col9",
+        "Row7_Col10",
+        "Row7_Col11",
+        "Row7_Col12",
+        "Row7_Col13",
+        "Row7_Col14",
+        "Row7_Col15",
+        "Row7_Col16"
+      ],
+      "group_label": "Row7",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row8",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 15,
+      "frame_names": [
+        "Sonic_3/Row8/0",
+        "Sonic_3/Row8/1",
+        "Sonic_3/Row8/2",
+        "Sonic_3/Row8/3",
+        "Sonic_3/Row8/4",
+        "Sonic_3/Row8/5",
+        "Sonic_3/Row8/6",
+        "Sonic_3/Row8/7",
+        "Sonic_3/Row8/8",
+        "Sonic_3/Row8/9",
+        "Sonic_3/Row8/10",
+        "Sonic_3/Row8/11",
+        "Sonic_3/Row8/12",
+        "Sonic_3/Row8/13",
+        "Sonic_3/Row8/14"
+      ],
+      "frame_rects": [
+        {
+          "sx": 44,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 111,
+          "sy": 445,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 179,
+          "sy": 445,
+          "w": 33,
+          "h": 34
+        },
+        {
+          "sx": 245,
+          "sy": 446,
+          "w": 34,
+          "h": 33
+        },
+        {
+          "sx": 312,
+          "sy": 445,
+          "w": 34,
+          "h": 34
+        },
+        {
+          "sx": 389,
+          "sy": 444,
+          "w": 34,
+          "h": 40
+        },
+        {
+          "sx": 452,
+          "sy": 444,
+          "w": 38,
+          "h": 40
+        },
+        {
+          "sx": 514,
+          "sy": 440,
+          "w": 42,
+          "h": 44
+        },
+        {
+          "sx": 583,
+          "sy": 441,
+          "w": 37,
+          "h": 43
+        },
+        {
+          "sx": 672,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 734,
+          "sy": 448,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 795,
+          "sy": 448,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 863,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 945,
+          "sy": 448,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 1016,
+          "sy": 438,
+          "w": 28,
+          "h": 49
+        }
+      ],
+      "frame_labels": [
+        "Row8_Col1",
+        "Row8_Col2",
+        "Row8_Col3",
+        "Row8_Col4",
+        "Row8_Col5",
+        "Row8_Col6",
+        "Row8_Col7",
+        "Row8_Col8",
+        "Row8_Col9",
+        "Row8_Col10",
+        "Row8_Col11",
+        "Row8_Col12",
+        "Row8_Col13",
+        "Row8_Col14",
+        "Row8_Col15"
+      ],
+      "group_label": "Row8",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row9",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 16,
+      "frame_names": [
+        "Sonic_3/Row9/0",
+        "Sonic_3/Row9/1",
+        "Sonic_3/Row9/2",
+        "Sonic_3/Row9/3",
+        "Sonic_3/Row9/4",
+        "Sonic_3/Row9/5",
+        "Sonic_3/Row9/6",
+        "Sonic_3/Row9/7",
+        "Sonic_3/Row9/8",
+        "Sonic_3/Row9/9",
+        "Sonic_3/Row9/10",
+        "Sonic_3/Row9/11",
+        "Sonic_3/Row9/12",
+        "Sonic_3/Row9/13",
+        "Sonic_3/Row9/14",
+        "Sonic_3/Row9/15"
+      ],
+      "frame_rects": [
+        {
+          "sx": 35,
+          "sy": 540,
+          "w": 52,
+          "h": 29
+        },
+        {
+          "sx": 102,
+          "sy": 540,
+          "w": 51,
+          "h": 30
+        },
+        {
+          "sx": 184,
+          "sy": 534,
+          "w": 33,
+          "h": 40
+        },
+        {
+          "sx": 256,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 319,
+          "sy": 534,
+          "w": 32,
+          "h": 40
+        },
+        {
+          "sx": 390,
+          "sy": 533,
+          "w": 28,
+          "h": 41
+        },
+        {
+          "sx": 465,
+          "sy": 529,
+          "w": 38,
+          "h": 44
+        },
+        {
+          "sx": 541,
+          "sy": 526,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 613,
+          "sy": 532,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "sx": 687,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 763,
+          "sy": 538,
+          "w": 44,
+          "h": 32
+        },
+        {
+          "sx": 830,
+          "sy": 538,
+          "w": 43,
+          "h": 31
+        },
+        {
+          "sx": 901,
+          "sy": 512,
+          "w": 76,
+          "h": 54
+        },
+        {
+          "sx": 983,
+          "sy": 539,
+          "w": 44,
+          "h": 16
+        },
+        {
+          "sx": 1038,
+          "sy": 540,
+          "w": 26,
+          "h": 15
+        },
+        {
+          "sx": 1081,
+          "sy": 523,
+          "w": 39,
+          "h": 14
+        }
+      ],
+      "frame_labels": [
+        "Row9_Col1",
+        "Row9_Col2",
+        "Row9_Col3",
+        "Row9_Col4",
+        "Row9_Col5",
+        "Row9_Col6",
+        "Row9_Col7",
+        "Row9_Col8",
+        "Row9_Col9",
+        "Row9_Col10",
+        "Row9_Col11",
+        "Row9_Col12",
+        "Row9_Col13",
+        "Row9_Col14",
+        "Row9_Col15",
+        "Row9_Col16"
+      ],
+      "group_label": "Row9",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row10",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 15,
+      "frame_names": [
+        "Sonic_3/Row10/0",
+        "Sonic_3/Row10/1",
+        "Sonic_3/Row10/2",
+        "Sonic_3/Row10/3",
+        "Sonic_3/Row10/4",
+        "Sonic_3/Row10/5",
+        "Sonic_3/Row10/6",
+        "Sonic_3/Row10/7",
+        "Sonic_3/Row10/8",
+        "Sonic_3/Row10/9",
+        "Sonic_3/Row10/10",
+        "Sonic_3/Row10/11",
+        "Sonic_3/Row10/12",
+        "Sonic_3/Row10/13",
+        "Sonic_3/Row10/14"
+      ],
+      "frame_rects": [
+        {
+          "sx": 45,
+          "sy": 675,
+          "w": 34,
+          "h": 42
+        },
+        {
+          "sx": 106,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 188,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 255,
+          "sy": 673,
+          "w": 28,
+          "h": 44
+        },
+        {
+          "sx": 316,
+          "sy": 674,
+          "w": 33,
+          "h": 43
+        },
+        {
+          "sx": 383,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 450,
+          "sy": 673,
+          "w": 36,
+          "h": 44
+        },
+        {
+          "sx": 517,
+          "sy": 678,
+          "w": 36,
+          "h": 39
+        },
+        {
+          "sx": 611,
+          "sy": 682,
+          "w": 44,
+          "h": 26
+        },
+        {
+          "sx": 682,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 754,
+          "sy": 673,
+          "w": 26,
+          "h": 44
+        },
+        {
+          "sx": 816,
+          "sy": 677,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "sx": 894,
+          "sy": 669,
+          "w": 38,
+          "h": 47
+        },
+        {
+          "sx": 968,
+          "sy": 674,
+          "w": 36,
+          "h": 42
+        },
+        {
+          "sx": 1046,
+          "sy": 672,
+          "w": 26,
+          "h": 45
+        }
+      ],
+      "frame_labels": [
+        "Row10_Col1",
+        "Row10_Col2",
+        "Row10_Col3",
+        "Row10_Col4",
+        "Row10_Col5",
+        "Row10_Col6",
+        "Row10_Col7",
+        "Row10_Col8",
+        "Row10_Col9",
+        "Row10_Col10",
+        "Row10_Col11",
+        "Row10_Col12",
+        "Row10_Col13",
+        "Row10_Col14",
+        "Row10_Col15"
+      ],
+      "group_label": "Row10",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row11",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 5,
+      "frame_names": [
+        "Sonic_3/Row11/0",
+        "Sonic_3/Row11/1",
+        "Sonic_3/Row11/2",
+        "Sonic_3/Row11/3",
+        "Sonic_3/Row11/4"
+      ],
+      "frame_rects": [
+        {
+          "sx": 615,
+          "sy": 763,
+          "w": 36,
+          "h": 43
+        },
+        {
+          "sx": 684,
+          "sy": 765,
+          "w": 32,
+          "h": 39
+        },
+        {
+          "sx": 754,
+          "sy": 769,
+          "w": 26,
+          "h": 24
+        },
+        {
+          "sx": 959,
+          "sy": 760,
+          "w": 37,
+          "h": 49
+        },
+        {
+          "sx": 1026,
+          "sy": 759,
+          "w": 39,
+          "h": 50
+        }
+      ],
+      "frame_labels": [
+        "Row11_Col1",
+        "Row11_Col2",
+        "Row11_Col3",
+        "Row11_Col4",
+        "Row11_Col5"
+      ],
+      "group_label": "Row11",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row12",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 1,
+      "frame_names": [
+        "Sonic_3/Row12/0"
+      ],
+      "frame_rects": [
+        {
+          "sx": 62,
+          "sy": 798,
+          "w": 48,
+          "h": 75
+        }
+      ],
+      "frame_labels": [
+        "Row12_Col1"
+      ],
+      "group_label": "Row12",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row13",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 2,
+      "frame_names": [
+        "Sonic_3/Row13/0",
+        "Sonic_3/Row13/1"
+      ],
+      "frame_rects": [
+        {
+          "sx": 615,
+          "sy": 862,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 681,
+          "sy": 861,
+          "w": 49,
+          "h": 26
+        }
+      ],
+      "frame_labels": [
+        "Row13_Col1",
+        "Row13_Col2"
+      ],
+      "group_label": "Row13",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row14",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 1,
+      "frame_names": [
+        "Sonic_3/Row14/0"
+      ],
+      "frame_rects": [
+        {
+          "sx": 586,
+          "sy": 946,
+          "w": 594,
+          "h": 181
+        }
+      ],
+      "frame_labels": [
+        "Row14_Col1"
+      ],
+      "group_label": "Row14",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row15",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 22,
+      "frame_names": [
+        "Sonic_3/Row15/0",
+        "Sonic_3/Row15/1",
+        "Sonic_3/Row15/2",
+        "Sonic_3/Row15/3",
+        "Sonic_3/Row15/4",
+        "Sonic_3/Row15/5",
+        "Sonic_3/Row15/6",
+        "Sonic_3/Row15/7",
+        "Sonic_3/Row15/8",
+        "Sonic_3/Row15/9",
+        "Sonic_3/Row15/10",
+        "Sonic_3/Row15/11",
+        "Sonic_3/Row15/12",
+        "Sonic_3/Row15/13",
+        "Sonic_3/Row15/14",
+        "Sonic_3/Row15/15",
+        "Sonic_3/Row15/16",
+        "Sonic_3/Row15/17",
+        "Sonic_3/Row15/18",
+        "Sonic_3/Row15/19",
+        "Sonic_3/Row15/20",
+        "Sonic_3/Row15/21"
+      ],
+      "frame_rects": [
+        {
+          "sx": 39,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 106,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 173,
+          "sy": 976,
+          "w": 44,
+          "h": 31
+        },
+        {
+          "sx": 239,
+          "sy": 991,
+          "w": 52,
+          "h": 17
+        },
+        {
+          "sx": 598,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 989,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 989,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 989,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row15_Col1",
+        "Row15_Col2",
+        "Row15_Col3",
+        "Row15_Col4",
+        "Row15_Col5",
+        "Row15_Col6",
+        "Row15_Col7",
+        "Row15_Col8",
+        "Row15_Col9",
+        "Row15_Col10",
+        "Row15_Col11",
+        "Row15_Col12",
+        "Row15_Col13",
+        "Row15_Col14",
+        "Row15_Col15",
+        "Row15_Col16",
+        "Row15_Col17",
+        "Row15_Col18",
+        "Row15_Col19",
+        "Row15_Col20",
+        "Row15_Col21",
+        "Row15_Col22"
+      ],
+      "group_label": "Row15",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row16",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 18,
+      "frame_names": [
+        "Sonic_3/Row16/0",
+        "Sonic_3/Row16/1",
+        "Sonic_3/Row16/2",
+        "Sonic_3/Row16/3",
+        "Sonic_3/Row16/4",
+        "Sonic_3/Row16/5",
+        "Sonic_3/Row16/6",
+        "Sonic_3/Row16/7",
+        "Sonic_3/Row16/8",
+        "Sonic_3/Row16/9",
+        "Sonic_3/Row16/10",
+        "Sonic_3/Row16/11",
+        "Sonic_3/Row16/12",
+        "Sonic_3/Row16/13",
+        "Sonic_3/Row16/14",
+        "Sonic_3/Row16/15",
+        "Sonic_3/Row16/16",
+        "Sonic_3/Row16/17"
+      ],
+      "frame_rects": [
+        {
+          "sx": 598,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1006,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1006,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1006,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row16_Col1",
+        "Row16_Col2",
+        "Row16_Col3",
+        "Row16_Col4",
+        "Row16_Col5",
+        "Row16_Col6",
+        "Row16_Col7",
+        "Row16_Col8",
+        "Row16_Col9",
+        "Row16_Col10",
+        "Row16_Col11",
+        "Row16_Col12",
+        "Row16_Col13",
+        "Row16_Col14",
+        "Row16_Col15",
+        "Row16_Col16",
+        "Row16_Col17",
+        "Row16_Col18"
+      ],
+      "group_label": "Row16",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row17",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 18,
+      "frame_names": [
+        "Sonic_3/Row17/0",
+        "Sonic_3/Row17/1",
+        "Sonic_3/Row17/2",
+        "Sonic_3/Row17/3",
+        "Sonic_3/Row17/4",
+        "Sonic_3/Row17/5",
+        "Sonic_3/Row17/6",
+        "Sonic_3/Row17/7",
+        "Sonic_3/Row17/8",
+        "Sonic_3/Row17/9",
+        "Sonic_3/Row17/10",
+        "Sonic_3/Row17/11",
+        "Sonic_3/Row17/12",
+        "Sonic_3/Row17/13",
+        "Sonic_3/Row17/14",
+        "Sonic_3/Row17/15",
+        "Sonic_3/Row17/16",
+        "Sonic_3/Row17/17"
+      ],
+      "frame_rects": [
+        {
+          "sx": 598,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 894,
+          "sy": 1023,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 939,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 966,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 993,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1020,
+          "sy": 1023,
+          "w": 27,
+          "h": 19
+        },
+        {
+          "sx": 1045,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1072,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1099,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 1126,
+          "sy": 1023,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row17_Col1",
+        "Row17_Col2",
+        "Row17_Col3",
+        "Row17_Col4",
+        "Row17_Col5",
+        "Row17_Col6",
+        "Row17_Col7",
+        "Row17_Col8",
+        "Row17_Col9",
+        "Row17_Col10",
+        "Row17_Col11",
+        "Row17_Col12",
+        "Row17_Col13",
+        "Row17_Col14",
+        "Row17_Col15",
+        "Row17_Col16",
+        "Row17_Col17",
+        "Row17_Col18"
+      ],
+      "group_label": "Row17",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row18",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 9,
+      "frame_names": [
+        "Sonic_3/Row18/0",
+        "Sonic_3/Row18/1",
+        "Sonic_3/Row18/2",
+        "Sonic_3/Row18/3",
+        "Sonic_3/Row18/4",
+        "Sonic_3/Row18/5",
+        "Sonic_3/Row18/6",
+        "Sonic_3/Row18/7",
+        "Sonic_3/Row18/8"
+      ],
+      "frame_rects": [
+        {
+          "sx": 598,
+          "sy": 1062,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1062,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row18_Col1",
+        "Row18_Col2",
+        "Row18_Col3",
+        "Row18_Col4",
+        "Row18_Col5",
+        "Row18_Col6",
+        "Row18_Col7",
+        "Row18_Col8",
+        "Row18_Col9"
+      ],
+      "group_label": "Row18",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
+    },
+    {
+      "name": "Sonic_3/Row19",
+      "path": "images\\uploads\\Sonic_3\\sonic-full_sprite_sheet.png",
+      "type": "atlas",
+      "frame_size": 128,
+      "width": 1194,
+      "height": 1175,
+      "frames": 24,
+      "frame_names": [
+        "Sonic_3/Row19/0",
+        "Sonic_3/Row19/1",
+        "Sonic_3/Row19/2",
+        "Sonic_3/Row19/3",
+        "Sonic_3/Row19/4",
+        "Sonic_3/Row19/5",
+        "Sonic_3/Row19/6",
+        "Sonic_3/Row19/7",
+        "Sonic_3/Row19/8",
+        "Sonic_3/Row19/9",
+        "Sonic_3/Row19/10",
+        "Sonic_3/Row19/11",
+        "Sonic_3/Row19/12",
+        "Sonic_3/Row19/13",
+        "Sonic_3/Row19/14",
+        "Sonic_3/Row19/15",
+        "Sonic_3/Row19/16",
+        "Sonic_3/Row19/17",
+        "Sonic_3/Row19/18",
+        "Sonic_3/Row19/19",
+        "Sonic_3/Row19/20",
+        "Sonic_3/Row19/21",
+        "Sonic_3/Row19/22",
+        "Sonic_3/Row19/23"
+      ],
+      "frame_rects": [
+        {
+          "sx": 42,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 104,
+          "sy": 1103,
+          "w": 48,
+          "h": 26
+        },
+        {
+          "sx": 161,
+          "sy": 1103,
+          "w": 49,
+          "h": 26
+        },
+        {
+          "sx": 233,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 315,
+          "sy": 1103,
+          "w": 43,
+          "h": 27
+        },
+        {
+          "sx": 386,
+          "sy": 1093,
+          "w": 28,
+          "h": 49
+        },
+        {
+          "sx": 598,
+          "sy": 1079,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 598,
+          "sy": 1096,
+          "w": 47,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 643,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 670,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 697,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 724,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 751,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 778,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 805,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1079,
+          "w": 29,
+          "h": 19
+        },
+        {
+          "sx": 832,
+          "sy": 1096,
+          "w": 29,
+          "h": 19
+        }
+      ],
+      "frame_labels": [
+        "Row19_Col1",
+        "Row19_Col2",
+        "Row19_Col3",
+        "Row19_Col4",
+        "Row19_Col5",
+        "Row19_Col6",
+        "Row19_Col7",
+        "Row19_Col8",
+        "Row19_Col9",
+        "Row19_Col10",
+        "Row19_Col11",
+        "Row19_Col12",
+        "Row19_Col13",
+        "Row19_Col14",
+        "Row19_Col15",
+        "Row19_Col16",
+        "Row19_Col17",
+        "Row19_Col18",
+        "Row19_Col19",
+        "Row19_Col20",
+        "Row19_Col21",
+        "Row19_Col22",
+        "Row19_Col23",
+        "Row19_Col24"
+      ],
+      "group_label": "Row19",
+      "source_sheet": "Sonic_3/sonic-full_sprite_sheet"
     }
   ],
   "sequences": {

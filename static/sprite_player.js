@@ -14,6 +14,10 @@
 
   function frameRectForSheet(sheet, frameIndex, frameSize) {
     const size = frameSize || FRAME_SIZE;
+    if (sheet && Array.isArray(sheet.frameRects) && sheet.frameRects[frameIndex]) {
+      const rect = sheet.frameRects[frameIndex];
+      return { sx: rect.sx, sy: rect.sy, w: rect.w, h: rect.h };
+    }
     if (!sheet || sheet.type === "strip" || sheet.type === "single") {
       return { sx: frameIndex * size, sy: 0, w: size, h: size };
     }
@@ -38,6 +42,7 @@
         columns: sheet.columns || SHEET_COLS,
         frameSize: sheet.frame_size || baseSize,
         frames: sheet.frames || (sheet.frame_names ? sheet.frame_names.length : 0),
+        frameRects: sheet.frame_rects || null,
       };
       index.sheets[name] = entry;
       const frameNames = sheet.frame_names || [];
