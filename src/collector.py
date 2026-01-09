@@ -132,9 +132,10 @@ def migrate(conn: sqlite3.Connection) -> None:
     # For malformed messages we store payload_text + hash and set payload_json to '{}'
     # to satisfy old constraint. (No destructive migration.)
 
-    # Unique index on payload_hash (ignore duplicates)
+    # Allow duplicate payloads with different epochs; keep a non-unique index for lookup.
+    conn.execute("DROP INDEX IF EXISTS idx_raw_events_payload_hash;")
     conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_events_payload_hash "
+        "CREATE INDEX IF NOT EXISTS idx_raw_events_payload_hash "
         "ON raw_events(payload_hash);"
     )
     conn.commit()
@@ -155,10 +156,9 @@ def insert_raw_lossless(
 ) -> None:
     phash = payload_fingerprint(payload_text)
 
-    # INSERT OR IGNORE makes this idempotent with the unique index on payload_hash
     conn.execute(
         """
-        INSERT OR IGNORE INTO raw_events(
+        INSERT INTO raw_events(
           received_at_epoch, device_id, message_type, payload_json, payload_text, payload_hash
         ) VALUES (?,?,?,?,?,?)
         """,

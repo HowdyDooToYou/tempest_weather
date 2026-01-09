@@ -20,6 +20,9 @@ POLL_SEC = int(os.getenv("AIRLINK_POLL_SEC", "15"))
 HTTP_TIMEOUT = int(os.getenv("AIRLINK_HTTP_TIMEOUT", "8"))
 RETRY_SEC = int(os.getenv("AIRLINK_RETRY_SEC", "5"))
 
+AIRLINK_OBS_TABLE = "airlink_current_obs"
+AIRLINK_RAW_TABLE = "airlink_raw_all"
+
 
 def log(msg: str):
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -56,10 +59,143 @@ def db():
     return conn
 
 
+def table_exists(conn, name: str) -> bool:
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
+def table_columns(conn, name: str) -> set:
+    rows = conn.execute(f"PRAGMA table_info({name})").fetchall()
+    return {row[1] for row in rows}
+
+
+def migrate_legacy_airlink_obs(conn: sqlite3.Connection) -> None:
+    if not table_exists(conn, "airlink_obs"):
+        return
+    cols = table_columns(conn, "airlink_obs")
+    if {"did", "ts"}.issubset(cols):
+        if not table_exists(conn, AIRLINK_OBS_TABLE):
+            conn.execute(f"ALTER TABLE airlink_obs RENAME TO {AIRLINK_OBS_TABLE};")
+
+def backfill_airlink_raw_all(conn: sqlite3.Connection) -> None:
+    if not table_exists(conn, "airlink_raw") or not table_exists(conn, AIRLINK_RAW_TABLE):
+        return
+    count = conn.execute(f"SELECT COUNT(1) FROM {AIRLINK_RAW_TABLE}").fetchone()
+    if count and count[0]:
+        return
+    conn.execute(
+        f"""
+        INSERT INTO {AIRLINK_RAW_TABLE} (
+          received_at_epoch, host, did, ts, lsid, payload_json, payload_hash
+        )
+        SELECT received_at_epoch, host, did, ts, lsid, payload_json, payload_hash
+        FROM airlink_raw
+        """
+    )
+
+
+def ensure_schema() -> None:
+    with db() as conn:
+        migrate_legacy_airlink_obs(conn)
+        conn.executescript(
+            f"""
+CREATE TABLE IF NOT EXISTS airlink_raw (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  received_at_epoch INTEGER NOT NULL,
+  host TEXT NOT NULL,
+  did TEXT,
+  ts INTEGER,
+  lsid INTEGER,
+  payload_json TEXT NOT NULL,
+  payload_hash TEXT NOT NULL UNIQUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_airlink_raw_received
+  ON airlink_raw(received_at_epoch);
+
+CREATE INDEX IF NOT EXISTS idx_airlink_raw_ts
+  ON airlink_raw(ts);
+
+CREATE TABLE IF NOT EXISTS {AIRLINK_RAW_TABLE} (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  received_at_epoch INTEGER NOT NULL,
+  host TEXT NOT NULL,
+  did TEXT,
+  ts INTEGER,
+  lsid INTEGER,
+  payload_json TEXT NOT NULL,
+  payload_hash TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_airlink_raw_all_received
+  ON {AIRLINK_RAW_TABLE}(received_at_epoch);
+
+CREATE INDEX IF NOT EXISTS idx_airlink_raw_all_ts
+  ON {AIRLINK_RAW_TABLE}(ts);
+
+CREATE TABLE IF NOT EXISTS {AIRLINK_OBS_TABLE} (
+  did TEXT NOT NULL,
+  ts INTEGER NOT NULL,
+
+  lsid INTEGER,
+  data_structure_type INTEGER,
+  last_report_time INTEGER,
+
+  temp_f REAL,
+  hum REAL,
+  dew_point_f REAL,
+  wet_bulb_f REAL,
+  heat_index_f REAL,
+
+  pm_1 REAL,
+  pm_2p5 REAL,
+  pm_10 REAL,
+
+  pm_1_last REAL,
+  pm_2p5_last REAL,
+  pm_10_last REAL,
+
+  pm_1_last_1_hour REAL,
+  pm_2p5_last_1_hour REAL,
+  pm_10_last_1_hour REAL,
+
+  pm_1_last_3_hours REAL,
+  pm_2p5_last_3_hours REAL,
+  pm_10_last_3_hours REAL,
+
+  pm_1_last_24_hours REAL,
+  pm_2p5_last_24_hours REAL,
+  pm_10_last_24_hours REAL,
+
+  pm_1_nowcast REAL,
+  pm_2p5_nowcast REAL,
+  pm_10_nowcast REAL,
+
+  pct_pm_data_nowcast REAL,
+  pct_pm_data_last_1_hour REAL,
+  pct_pm_data_last_3_hours REAL,
+  pct_pm_data_last_24_hours REAL,
+
+  PRIMARY KEY (did, ts)
+);
+
+CREATE INDEX IF NOT EXISTS idx_airlink_current_obs_ts
+  ON {AIRLINK_OBS_TABLE}(ts);
+"""
+        )
+        backfill_airlink_raw_all(conn)
+        conn.commit()
+
+
 def run():
     if not HOST:
         log("ERROR: DAVIS_AIRLINK_HOST not set (e.g. http://192.168.1.19)")
         return
+
+    ensure_schema()
 
     log(f"DB ready at: {DB_PATH}")
     log(f"Polling AirLink URL={URL} every {POLL_SEC}s")
@@ -84,31 +220,28 @@ def run():
             c0 = conds[0] if conds else {}
 
             with db() as conn:
-                # raw payload (deduplicated)
-                try:
-                    conn.execute(
-                        """
-                        INSERT INTO airlink_raw
-                          (received_at_epoch, host, did, ts, lsid, payload_json, payload_hash)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            received_at,
-                            HOST,
-                            did,
-                            ts,
-                            to_int(c0.get("lsid")),
-                            payload_text,
-                            payload_hash,
-                        ),
-                    )
-                except sqlite3.IntegrityError:
-                    pass
+                # raw payload (append-only)
+                conn.execute(
+                    f"""
+                    INSERT INTO {AIRLINK_RAW_TABLE}
+                      (received_at_epoch, host, did, ts, lsid, payload_json, payload_hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        received_at,
+                        HOST,
+                        did,
+                        ts,
+                        to_int(c0.get("lsid")),
+                        payload_text,
+                        payload_hash,
+                    ),
+                )
 
                 # structured observation
                 conn.execute(
-                    """
-                    INSERT OR REPLACE INTO airlink_obs (
+                    f"""
+                    INSERT OR REPLACE INTO {AIRLINK_OBS_TABLE} (
                       did, ts,
                       lsid, data_structure_type, last_report_time,
                       temp_f, hum, dew_point_f, wet_bulb_f, heat_index_f,
@@ -160,7 +293,7 @@ def run():
                 conn.commit()
 
             log(
-                f"Stored airlink_obs did={did} ts={ts} "
+                f"Stored {AIRLINK_OBS_TABLE} did={did} ts={ts} "
                 f"pm2.5={c0.get('pm_2p5')} temp_f={c0.get('temp')} hum={c0.get('hum')}"
             )
 

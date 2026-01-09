@@ -24,6 +24,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 DB_PATH = "data/tempest.db"
+UI_SKIN_STATE_PATH = Path("data/ui_skin.json")
 TEMPEST_STATION_ID = 475329
 TEMPEST_HUB_ID = 475327
 
@@ -37,6 +38,30 @@ PING_TARGETS = {
 
 CHART_SCHEME = "tableau10"
 LOCAL_TZ = "America/New_York"
+
+def resolve_table(candidates):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        for name in candidates:
+            cur.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (name,),
+            )
+            if cur.fetchone():
+                return name
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return None
+
+AIRLINK_TABLE = resolve_table(["airlink_current_obs", "airlink_obs"])
+AIRLINK_RAW_TABLE = resolve_table(["airlink_raw_all", "airlink_raw"])
+RAW_EVENTS_TABLE = resolve_table(["raw_events"])
 
 st.set_page_config(
     page_title="Weather & Air Quality Dashboard",
@@ -1260,15 +1285,18 @@ def get_storage_stats():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(1) FROM obs_st")
         stats["total_rows"] += int(cur.fetchone()[0])
-        cur.execute("SELECT COUNT(1) FROM airlink_obs")
-        stats["total_rows"] += int(cur.fetchone()[0])
+        if AIRLINK_TABLE:
+            cur.execute(f"SELECT COUNT(1) FROM {AIRLINK_TABLE}")
+            stats["total_rows"] += int(cur.fetchone()[0])
         def measurement_cols(table, exclude):
             cur.execute(f"PRAGMA table_info({table})")
             cols = [row[1] for row in cur.fetchall()]
             return [c for c in cols if c not in exclude]
         obs_exclude = {"obs_epoch", "device_id", "obs_raw_json"}
         air_exclude = {"did", "ts", "lsid", "data_structure_type", "last_report_time"}
-        measurements = set(measurement_cols("obs_st", obs_exclude)) | set(measurement_cols("airlink_obs", air_exclude))
+        measurements = set(measurement_cols("obs_st", obs_exclude))
+        if AIRLINK_TABLE:
+            measurements |= set(measurement_cols(AIRLINK_TABLE, air_exclude))
         stats["measurements"] = len(measurements)
         conn.close()
     except Exception:
@@ -1364,20 +1392,22 @@ def compute_pm25_aqi(pm_value):
 
 def backfill_aqi_columns():
     """Ensure AQI columns exist and are populated using corrected rounding."""
+    if not AIRLINK_TABLE:
+        return 0
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("PRAGMA table_info(airlink_obs)")
+    cur.execute(f"PRAGMA table_info({AIRLINK_TABLE})")
     cols = {row[1] for row in cur.fetchall()}
     desired = ["aqi_pm25", "aqi_pm25_last_1_hour", "aqi_pm25_nowcast"]
     missing = [c for c in desired if c not in cols]
     for col in missing:
-        cur.execute(f"ALTER TABLE airlink_obs ADD COLUMN {col} REAL")
+        cur.execute(f"ALTER TABLE {AIRLINK_TABLE} ADD COLUMN {col} REAL")
     conn.commit()
 
     where_clause = " OR ".join([f"{c} IS NULL" for c in desired])
     query = f"""
 SELECT rowid, pm_2p5, pm_2p5_last_1_hour, pm_2p5_nowcast
-FROM airlink_obs
+FROM {AIRLINK_TABLE}
 WHERE {where_clause}
 """
     df = pd.read_sql_query(query, conn)
@@ -1394,7 +1424,7 @@ WHERE {where_clause}
             )
         )
         cur.executemany(
-            "UPDATE airlink_obs SET aqi_pm25=?, aqi_pm25_last_1_hour=?, aqi_pm25_nowcast=? WHERE rowid=?",
+            f"UPDATE {AIRLINK_TABLE} SET aqi_pm25=?, aqi_pm25_last_1_hour=?, aqi_pm25_nowcast=? WHERE rowid=?",
             rows,
         )
         conn.commit()
@@ -1699,6 +1729,8 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
         st.session_state.ping_results = {}
     if "conn_expanded" not in st.session_state:
         st.session_state.conn_expanded = False
+    if "app_started_at" not in st.session_state:
+        st.session_state.app_started_at = time.time()
 
     by_name = {s["name"]: s for s in sources}
     station_recent = by_name.get("Tempest Station", {}).get("recent_count", 0) or 0
@@ -1775,6 +1807,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
         with st.sidebar.container():
             header_cols = st.columns([1.4, 0.8])
             with header_cols[0]:
+                hub_uptime_text = fmt_duration((time.time() - hub_activity["last_epoch"]) if hub_activity.get("last_epoch") else None)
                 st.markdown(
                     f"""
 <div class="ingest-shell hero-glow">
@@ -1783,6 +1816,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
       <div class="ingest-eyebrow">Connection status</div>
       <div class="ingest-summary">{header_title}</div>
       <div class="ingest-help">Avg data age is the mean time since last packets across sources.</div>
+      <div class="ingest-help">Hub uptime: {hub_uptime_text}</div>
       <div class="ingest-status-row">
         {summary_html}
       </div>
@@ -1829,30 +1863,29 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
                 except Exception:
                     return False, "Ping failed"
 
-        for src in statuses:
-            row_cols = st.columns([1.4, 1.6, 1.2, 0.7, 1.0])
-            row_cols[0].markdown(
-                f"**{src['name']}**  \n{status_labels[src['status']]}"
-            )
-            row_cols[1].markdown(f"{src['latency_text']} - {src['load_text']}")
-            row_cols[2].markdown(src["last_seen"])
-            target = PING_TARGETS.get(src["name"])
-            if not target and src["name"] == "Tempest Station":
-                target = PING_TARGETS.get("Tempest Hub")
-            ping_disabled = not target
-            if row_cols[3].button(
-                "ping",
-                key=f"ping_{src['name']}",
-                disabled=ping_disabled,
-            ):
-                st.session_state.conn_expanded = True
-                ok, msg = ping_device(target)
-                st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
-            guard_sprite = guard_sprites.get(src["name"])
-            if guard_sprite:
-                guard_state = "guard" if src["status"] in ("ok", "standby") else "down"
-                canvas_id = f"guard_{src['name'].replace(' ', '_')}"
-                guard_html = f"""
+            for src in statuses:
+                target = PING_TARGETS.get(src["name"])
+                if not target and src["name"] == "Tempest Station":
+                    target = PING_TARGETS.get("Tempest Hub")
+                ping_disabled = not target
+                expander_title = f"{src['name']} — {status_labels[src['status']]}"
+                with st.expander(expander_title, expanded=False):
+                    st.markdown(f"**Status:** {status_labels[src['status']]}")
+                    st.markdown(f"**Latency/Load:** {src['latency_text']} - {src['load_text']}")
+                    st.markdown(f"**Last seen:** {src['last_seen']}")
+                    if st.button(
+                        "ping",
+                        key=f"ping_{src['name']}",
+                        disabled=ping_disabled,
+                    ):
+                        st.session_state.conn_expanded = True
+                        ok, msg = ping_device(target)
+                        st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
+                    guard_sprite = guard_sprites.get(src["name"])
+                    if guard_sprite:
+                        guard_state = "guard" if src["status"] in ("ok", "standby") else "down"
+                        canvas_id = f"guard_{src['name'].replace(' ', '_')}"
+                        guard_html = f"""
 <style>
 .conn-guard {{
   display: flex;
@@ -1925,19 +1958,18 @@ canvas {{
 }})();
 </script>
 """
-                with row_cols[4]:
-                    components.html(guard_html, height=150)
-            result = st.session_state.ping_results.get(src["name"])
-            if result:
-                ok, msg, ts = result
-                if time.time() - ts < 6:
-                    status_label = "OK" if ok else "WARN"
-                    st.markdown(
-                        f"<div class='ping-toast'>{status_label}: {src['name']} - {msg}</div>",
-                        unsafe_allow_html=True,
-                    )
-            elif ping_disabled:
-                st.markdown(f"INFO: {src['name']}: set ping target in `PING_TARGETS` to enable.")
+                        components.html(guard_html, height=150)
+                    result = st.session_state.ping_results.get(src["name"])
+                    if result:
+                        ok, msg, ts = result
+                        if time.time() - ts < 6:
+                            status_label = "OK" if ok else "WARN"
+                            st.markdown(
+                                f"<div class='ping-toast'>{status_label}: {src['name']} - {msg}</div>",
+                                unsafe_allow_html=True,
+                            )
+                    elif ping_disabled:
+                        st.markdown(f"INFO: {src['name']}: set ping target in `PING_TARGETS` to enable.")
 
 def daily_extremes(df, time_col, value_cols):
     if df is None or df.empty:
@@ -2468,7 +2500,7 @@ def sanitize_sprite_component(value: str):
 
 def load_sprite_manifest_file(path: Path):
     if not path.exists():
-        return {"generated_at": datetime.utcnow().isoformat() + "Z", "frame_size": 128, "sheet_columns": 8, "sheets": []}
+    return {"generated_at": datetime.utcnow().isoformat() + "Z", "frame_size": 128, "sheet_columns": 8, "sheets": []}
     try:
         return json.loads(path.read_text())
     except Exception:
@@ -2478,6 +2510,25 @@ def load_sprite_manifest_file(path: Path):
 def save_sprite_manifest_file(path: Path, manifest: dict):
     manifest["generated_at"] = datetime.utcnow().isoformat() + "Z"
     path.write_text(json.dumps(manifest, indent=2))
+
+
+def load_ui_skin_state():
+    try:
+        if UI_SKIN_STATE_PATH.exists():
+            payload = json.loads(UI_SKIN_STATE_PATH.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                return payload.get("skin")
+    except Exception:
+        return None
+    return None
+
+
+def save_ui_skin_state(skin_name: str):
+    try:
+        UI_SKIN_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        UI_SKIN_STATE_PATH.write_text(json.dumps({"skin": skin_name}, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def build_sheet_entry(sheet_name: str, sheet_path: Path, sheet_type: str, frame_size: int):
@@ -2914,7 +2965,7 @@ def parse_texture_atlas(xml_bytes: bytes):
 
 def ingest_ui_pack(xml_bytes: bytes, png_bytes: bytes, pack_name: str):
     pack_name = sanitize_sprite_component(pack_name) or "UI_Pack"
-    ui_dir = Path("images/ui_packs") / pack_name
+    ui_dir = Path("assets/ui_packs") / pack_name
     ui_dir.mkdir(parents=True, exist_ok=True)
     xml_path = ui_dir / "spritesheet.xml"
     png_path = ui_dir / "spritesheet.png"
@@ -2953,6 +3004,7 @@ def ingest_ui_pack(xml_bytes: bytes, png_bytes: bytes, pack_name: str):
         manifest["sheets"].append(entry)
     save_sprite_manifest_file(manifest_path, manifest)
     materialize_ui_pack_assets(entry, pack_name)
+    save_ui_skin_state(pack_name)
     return {"ok": True, "message": f"Imported {len(frame_rects)} UI assets.", "sheet": entry}
 
 
@@ -3030,6 +3082,7 @@ def extract_ui_pack_zip(zip_bytes: bytes, dest_root: Path, pack_name: str):
     pack_name = sanitize_sprite_component(pack_name) or "UI_Pack"
     target_dir = dest_root / pack_name
     target_dir.mkdir(parents=True, exist_ok=True)
+    target_root = target_dir.resolve()
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for info in zf.infolist():
             name = info.filename
@@ -3037,7 +3090,11 @@ def extract_ui_pack_zip(zip_bytes: bytes, dest_root: Path, pack_name: str):
                 continue
             safe_name = name.replace("\\", "/")
             safe_name = safe_name.lstrip("/").replace("../", "")
-            dest = target_dir / safe_name
+            if ":" in safe_name.split("/")[0]:
+                continue
+            dest = (target_dir / safe_name).resolve()
+            if os.path.commonpath([str(dest), str(target_root)]) != str(target_root):
+                continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             with zf.open(info) as src, open(dest, "wb") as out:
                 out.write(src.read())
@@ -3519,7 +3576,6 @@ gauge_container = st.sidebar.container()
 now_ts = pd.Timestamp.utcnow()
 recent_cutoff_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=1)).timestamp())
 hub_recent_cutoff_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=24)).timestamp())
-hub_recent_cutoff_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=24)).timestamp())
 
 tempest_until_clause = "AND obs_epoch <= :until" if until_epoch is not None else ""
 airlink_until_clause = "AND ts <= :until" if until_epoch is not None else ""
@@ -3547,48 +3603,51 @@ tempest = load_df(
     {"since": since_epoch, **({"until": until_epoch} if until_epoch is not None else {})},
 )
 
-airlink = load_df(
-    f"""
-    SELECT
-        did,
-        ts,
-        lsid,
-        data_structure_type,
-        last_report_time,
-        temp_f,
-        hum,
-        dew_point_f,
-        wet_bulb_f,
-        heat_index_f,
-        pm_1,
-        pm_2p5,
-        pm_10,
-        pm_1_last,
-        pm_2p5_last,
-        pm_10_last,
-        pm_1_last_1_hour,
-        pm_2p5_last_1_hour,
-        pm_10_last_1_hour,
-        pm_1_last_3_hours,
-        pm_2p5_last_3_hours,
-        pm_10_last_3_hours,
-        pm_1_last_24_hours,
-        pm_2p5_last_24_hours,
-        pm_10_last_24_hours,
-        pm_1_nowcast,
-        pm_2p5_nowcast,
-        pm_10_nowcast,
-        pct_pm_data_nowcast,
-        pct_pm_data_last_1_hour,
-        pct_pm_data_last_3_hours,
-        pct_pm_data_last_24_hours
-    FROM airlink_obs
-    WHERE ts >= :since
-    {airlink_until_clause}
-    ORDER BY ts
-    """,
-    {"since": since_epoch, **({"until": until_epoch} if until_epoch is not None else {})},
-)
+if AIRLINK_TABLE:
+    airlink = load_df(
+        f"""
+        SELECT
+            did,
+            ts,
+            lsid,
+            data_structure_type,
+            last_report_time,
+            temp_f,
+            hum,
+            dew_point_f,
+            wet_bulb_f,
+            heat_index_f,
+            pm_1,
+            pm_2p5,
+            pm_10,
+            pm_1_last,
+            pm_2p5_last,
+            pm_10_last,
+            pm_1_last_1_hour,
+            pm_2p5_last_1_hour,
+            pm_10_last_1_hour,
+            pm_1_last_3_hours,
+            pm_2p5_last_3_hours,
+            pm_10_last_3_hours,
+            pm_1_last_24_hours,
+            pm_2p5_last_24_hours,
+            pm_10_last_24_hours,
+            pm_1_nowcast,
+            pm_2p5_nowcast,
+            pm_10_nowcast,
+            pct_pm_data_nowcast,
+            pct_pm_data_last_1_hour,
+            pct_pm_data_last_3_hours,
+            pct_pm_data_last_24_hours
+        FROM {AIRLINK_TABLE}
+        WHERE ts >= :since
+        {airlink_until_clause}
+        ORDER BY ts
+        """,
+        {"since": since_epoch, **({"until": until_epoch} if until_epoch is not None else {})},
+    )
+else:
+    airlink = pd.DataFrame()
 
 # Tempest transforms
 tempest_latest = None
@@ -3679,7 +3738,10 @@ render_sidebar_gauges(
 )
 
 ingest_sources = []
-airlink_activity = recent_activity("airlink_obs", "ts", recent_cutoff_epoch)
+if AIRLINK_TABLE:
+    airlink_activity = recent_activity(AIRLINK_TABLE, "ts", recent_cutoff_epoch)
+else:
+    airlink_activity = {"count": 0, "last_epoch": None}
 station_activity = recent_activity("obs_st", "obs_epoch", recent_cutoff_epoch, "device_id", TEMPEST_STATION_ID)
 hub_activity = recent_activity(
     "raw_events",
@@ -3806,62 +3868,84 @@ with title_cols[0]:
 with title_cols[1]:
     components.html(
         """
-        <style>
-          .dash-clock {
-            display: inline-block;
-            width: fit-content;
-            margin-left: auto;
-            text-align: right;
-            padding: 6px 10px;
-            border-radius: 12px;
-            border: 1px solid rgba(123,231,217,0.25);
-            background: rgba(13,16,22,0.7);
-            color: #f4f7ff;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-          }
-          .dash-clock .time {
-            font-size: 1.1rem;
-            font-weight: 700;
-          }
-          .dash-clock .date {
-            font-size: 0.78rem;
-            color: var(--text-secondary);
-          }
-          @media (prefers-color-scheme: light) {
-            .dash-clock {
-              background: #ffffff;
-              color: #111827;
-              border-color: #c9d4e6;
-            }
-            .dash-clock .date { color: #4b5563; }
-          }
-          .dash-clock.light {
-            background: #ffffff;
-            color: #111827;
-            border-color: #c9d4e6;
-          }
-          .dash-clock.light .date { color: #4b5563; }
-        </style>
-        <div class="dash-clock">
-          <div class="time" id="dash-clock-time">--:--</div>
-          <div class="date" id="dash-clock-date">--</div>
-        </div>
         <script>
         (function() {
+          const doc = window.parent && window.parent.document;
+          if (!doc) return;
+
+          const styleId = "dash-clock-style";
+          if (!doc.getElementById(styleId)) {
+            const style = doc.createElement("style");
+            style.id = styleId;
+            style.textContent = `
+              .dash-clock {
+                position: fixed;
+                left: 18px;
+                bottom: 18px;
+                z-index: 9999;
+                display: inline-block;
+                width: fit-content;
+                margin: 0;
+                text-align: left;
+                padding: 6px 10px;
+                border-radius: 12px;
+                border: 1px solid rgba(123,231,217,0.25);
+                background: rgba(13,16,22,0.7);
+                color: #f4f7ff;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+              }
+              .dash-clock .time {
+                font-size: 1.1rem;
+                font-weight: 700;
+              }
+              .dash-clock .date {
+                font-size: 0.78rem;
+                color: #9aa4b5;
+              }
+              @media (prefers-color-scheme: light) {
+                .dash-clock {
+                  background: #ffffff;
+                  color: #111827;
+                  border-color: #c9d4e6;
+                }
+                .dash-clock .date { color: #4b5563; }
+              }
+              .dash-clock.light {
+                background: #ffffff;
+                color: #111827;
+                border-color: #c9d4e6;
+              }
+              .dash-clock.light .date { color: #4b5563; }
+            `;
+            doc.head.appendChild(style);
+          }
+
+          let clock = doc.getElementById("dash-clock");
+          if (!clock) {
+            clock = doc.createElement("div");
+            clock.id = "dash-clock";
+            clock.className = "dash-clock";
+            clock.innerHTML = `
+              <div class="time" id="dash-clock-time">--:--</div>
+              <div class="date" id="dash-clock-date">--</div>
+            `;
+            doc.body.appendChild(clock);
+          }
+
           function applyTheme() {
             try {
-              const doc = window.parent && window.parent.document;
-              const theme = doc && (doc.body.getAttribute("data-theme") || doc.documentElement.getAttribute("data-theme"));
-              const lightClass = doc && doc.body.classList.contains("theme-light");
+              const theme = doc.body.getAttribute("data-theme") || doc.documentElement.getAttribute("data-theme");
+              const lightClass = doc.body.classList.contains("theme-light");
               if (theme === "light" || lightClass) {
-                document.querySelector(".dash-clock")?.classList.add("light");
+                clock.classList.add("light");
               } else {
-                document.querySelector(".dash-clock")?.classList.remove("light");
+                clock.classList.remove("light");
               }
             } catch (e) {}
           }
-          const timeEl = document.getElementById("dash-clock-time");
-          const dateEl = document.getElementById("dash-clock-date");
+
+          const timeEl = doc.getElementById("dash-clock-time");
+          const dateEl = doc.getElementById("dash-clock-date");
           function updateClock() {
             const now = new Date();
             const timeText = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
@@ -3869,6 +3953,7 @@ with title_cols[1]:
             if (timeEl) timeEl.textContent = timeText;
             if (dateEl) dateEl.textContent = dateText;
           }
+
           updateClock();
           applyTheme();
           setInterval(applyTheme, 2000);
@@ -3876,7 +3961,7 @@ with title_cols[1]:
         })();
         </script>
         """,
-        height=70,
+        height=0,
     )
 dashboard_payload = {
     **overview_payload,
@@ -4030,11 +4115,11 @@ with tabs[0]:
                         .configure_title(color="#cfd6e5")
                         .interactive()
                     )
-                    st.altair_chart(layered, use_container_width=True)
+                    st.altair_chart(layered, width="stretch")
                 else:
                     st.altair_chart(
                         clean_chart(metric["df"], height=220, title=None),
-                        use_container_width=True,
+                        width="stretch",
                     )
             else:
                 st.info("No data available for this metric in the selected window.")
@@ -4060,7 +4145,7 @@ with tabs[1]:
         )
         st.altair_chart(
             clean_chart(temp_long, height=280, title=None),
-            use_container_width=True,
+            width="stretch",
         )
         wind_long = tempest.melt(
             id_vars=["time"],
@@ -4078,7 +4163,7 @@ with tabs[1]:
         )
         st.altair_chart(
             clean_chart(wind_long, height=240, title=None),
-            use_container_width=True,
+            width="stretch",
         )
         pressure_long = tempest[["time", "pressure_inhg"]].rename(columns={"pressure_inhg": "value"})
         pressure_long["metric"] = "Pressure (inHg)"
@@ -4089,7 +4174,7 @@ with tabs[1]:
         )
         st.altair_chart(
             clean_chart(pressure_long, height=240, title=None),
-            use_container_width=True,
+            width="stretch",
         )
         if "pressure_inhg" in tempest:
             pressure_rate = tempest[["time", "pressure_inhg"]].copy()
@@ -4105,7 +4190,7 @@ with tabs[1]:
                 )
                 st.altair_chart(
                     clean_chart(pressure_rate[["time", "value", "metric"]], height=220, title=None),
-                    use_container_width=True,
+                    width="stretch",
                 )
         if "battery" in tempest:
             battery_long = tempest[["time", "battery"]].rename(columns={"battery": "value"})
@@ -4117,7 +4202,7 @@ with tabs[1]:
             )
             st.altair_chart(
                 clean_chart(battery_long, height=220, title=None),
-                use_container_width=True,
+                width="stretch",
             )
         if "rain_mm" in tempest:
             rain_long = tempest[["time", "rain_mm"]].rename(columns={"rain_mm": "value"})
@@ -4140,7 +4225,7 @@ with tabs[1]:
                 "<span class='info-icon' title='Cumulative rain over the selected window.'>i</span></div>",
                 unsafe_allow_html=True,
             )
-            st.altair_chart(rain_chart, use_container_width=True)
+            st.altair_chart(rain_chart, width="stretch")
         if "wind_dir_deg" in tempest:
             def bin_dir(deg):
                 if pd.isna(deg):
@@ -4157,7 +4242,7 @@ with tabs[1]:
                 )
                 st.altair_chart(
                     bar_chart(dir_counts, height=200, title=None, color="#61a5ff"),
-                    use_container_width=True,
+                    width="stretch",
                 )
     if airlink is not None and not airlink.empty:
         aqi_long = airlink[["time", "aqi_pm25"]].rename(columns={"aqi_pm25": "value"})
@@ -4169,7 +4254,7 @@ with tabs[1]:
         )
         st.altair_chart(
             clean_chart(aqi_long, height=240, title=None),
-            use_container_width=True,
+            width="stretch",
         )
     if tempest is not None and not tempest.empty and "solar_radiation" in tempest and "uv" in tempest:
         solar_uv = tempest.melt(
@@ -4188,7 +4273,7 @@ with tabs[1]:
         )
         st.altair_chart(
             clean_chart(solar_uv, height=240, title=None),
-            use_container_width=True,
+            width="stretch",
         )
     if airlink is not None and not airlink.empty:
         pm_long = airlink.melt(
@@ -4205,7 +4290,7 @@ with tabs[1]:
         )
         st.altair_chart(
             clean_chart(pm_long, height=240, title=None),
-            use_container_width=True,
+            width="stretch",
         )
 
 # Comparisons tab
@@ -4227,7 +4312,7 @@ with tabs[2]:
         )
         st.altair_chart(
             clean_chart(temp_compare, height=260, title=None),
-            use_container_width=True,
+            width="stretch",
         )
 
     if airlink is not None and not airlink.empty and tempest is not None and not tempest.empty:
@@ -4260,7 +4345,7 @@ with tabs[2]:
                 "<span class='info-icon' title='Shows how air quality shifts with wind speed.'>i</span></div>",
                 unsafe_allow_html=True,
             )
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width="stretch")
 
         comfort = merged[["air_temperature_f", "relative_humidity"]].dropna()
         if not comfort.empty:
@@ -4301,7 +4386,7 @@ with tabs[2]:
                 "<span class='info-icon' title='Clusters conditions into Comfortable/Dry/Humid/Hot buckets.'>i</span></div>",
                 unsafe_allow_html=True,
             )
-            st.altair_chart(comfort_chart, use_container_width=True)
+            st.altair_chart(comfort_chart, width="stretch")
 
 # Raw tab
 with tabs[3]:
@@ -4330,7 +4415,7 @@ with tabs[3]:
         unsafe_allow_html=True,
     )
     raw_limit = 500
-    raw_tabs = st.tabs(["Tempest obs_st", "AirLink obs"])
+    raw_tabs = st.tabs(["Tempest Station", "AirLink", "Tempest Raw", "AirLink Raw", "Hub Raw"])
 
     with raw_tabs[0]:
         tempest_raw = load_df(
@@ -4364,31 +4449,114 @@ with tabs[3]:
             if "rain_accumulated" in tempest_raw:
                 tempest_raw["rain_mm"] = tempest_raw["rain_accumulated"].astype(float)
             st.caption(f"Showing latest {min(raw_limit, len(tempest_raw))} rows.")
-            st.dataframe(tempest_raw, use_container_width=True)
+            st.dataframe(tempest_raw, width="stretch")
 
     with raw_tabs[1]:
-        airlink_raw = load_df(
-            f"""
-            SELECT *
-            FROM airlink_obs
-            WHERE ts >= :since
-            {airlink_until_clause}
-            ORDER BY ts DESC
-            LIMIT :limit
-            """,
-            {
-                "since": since_epoch,
-                "limit": raw_limit,
-                **({"until": until_epoch} if until_epoch is not None else {}),
-            },
-        )
-        if airlink_raw.empty:
+        if AIRLINK_TABLE:
+            airlink_obs_raw = load_df(
+                f"""
+                SELECT *
+                FROM {AIRLINK_TABLE}
+                WHERE ts >= :since
+                {airlink_until_clause}
+                ORDER BY ts DESC
+                LIMIT :limit
+                """,
+                {
+                    "since": since_epoch,
+                    "limit": raw_limit,
+                    **({"until": until_epoch} if until_epoch is not None else {}),
+                },
+            )
+        else:
+            airlink_obs_raw = pd.DataFrame()
+        if airlink_obs_raw.empty:
             st.info("No AirLink data in selected window.")
         else:
-            if "ts" in airlink_raw:
-                airlink_raw["time"] = epoch_to_dt(airlink_raw["ts"])
+            if "ts" in airlink_obs_raw:
+                airlink_obs_raw["time"] = epoch_to_dt(airlink_obs_raw["ts"])
+            st.caption(f"Showing latest {min(raw_limit, len(airlink_obs_raw))} rows.")
+            st.dataframe(airlink_obs_raw, width="stretch")
+
+    with raw_tabs[2]:
+        if RAW_EVENTS_TABLE:
+            tempest_events = load_df(
+                f"""
+                SELECT *
+                FROM {RAW_EVENTS_TABLE}
+                WHERE received_at_epoch >= :since
+                ORDER BY received_at_epoch DESC
+                LIMIT :limit
+                """,
+                {
+                    "since": since_epoch,
+                    "limit": raw_limit,
+                },
+            )
+        else:
+            tempest_events = pd.DataFrame()
+        if tempest_events.empty:
+            st.info("No Tempest raw events in selected window.")
+        else:
+            if "received_at_epoch" in tempest_events:
+                tempest_events["received_at_time"] = epoch_to_dt(tempest_events["received_at_epoch"])
+            st.caption(f"Showing latest {min(raw_limit, len(tempest_events))} rows.")
+            st.dataframe(tempest_events, width="stretch")
+
+    with raw_tabs[3]:
+        if AIRLINK_RAW_TABLE:
+            airlink_raw = load_df(
+                f"""
+                SELECT *
+                FROM {AIRLINK_RAW_TABLE}
+                WHERE received_at_epoch >= :since
+                ORDER BY received_at_epoch DESC
+                LIMIT :limit
+                """,
+                {
+                    "since": since_epoch,
+                    "limit": raw_limit,
+                },
+            )
+        else:
+            airlink_raw = pd.DataFrame()
+        if airlink_raw.empty:
+            st.info("No AirLink raw payloads in selected window.")
+        else:
+            if "received_at_epoch" in airlink_raw:
+                airlink_raw["received_at_time"] = epoch_to_dt(airlink_raw["received_at_epoch"])
             st.caption(f"Showing latest {min(raw_limit, len(airlink_raw))} rows.")
-            st.dataframe(airlink_raw, use_container_width=True)
+            st.dataframe(airlink_raw, width="stretch")
+
+    with raw_tabs[4]:
+        if RAW_EVENTS_TABLE:
+            hub_raw = load_df(
+                f"""
+                SELECT *
+                FROM {RAW_EVENTS_TABLE}
+                WHERE received_at_epoch >= :since
+                  AND (
+                    device_id = :hub_id
+                    OR message_type IN ("connection_opened", "ack")
+                  )
+                ORDER BY received_at_epoch DESC
+                LIMIT :limit
+                """,
+                {
+                    "since": since_epoch,
+                    "limit": raw_limit,
+                    "hub_id": TEMPEST_HUB_ID,
+                },
+            )
+        else:
+            hub_raw = pd.DataFrame()
+        if hub_raw.empty:
+            st.info("No Hub raw events in selected window.")
+        else:
+            if "received_at_epoch" in hub_raw:
+                hub_raw["received_at_time"] = epoch_to_dt(hub_raw["received_at_epoch"])
+            st.caption(f"Showing latest {min(raw_limit, len(hub_raw))} rows.")
+            st.dataframe(hub_raw, width="stretch")
 
 # Sprite Lab tab
 with tabs[4]:
@@ -4426,7 +4594,7 @@ with tabs[4]:
         tesseract_path = st.text_input("Tesseract path (optional)", value="")
         if tesseract_path and pytesseract is not None:
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
-        if st.button("Ingest Sheets", use_container_width=True):
+        if st.button("Ingest Sheets", width="stretch"):
             if not upload_files:
                 st.warning("Upload at least one PNG sheet.")
             else:
@@ -4504,7 +4672,7 @@ with tabs[4]:
             accept_multiple_files=True,
         )
         ui_pack_name = st.text_input("Pack name", value="Kenney_Adventure")
-        if st.button("Import UI Pack", use_container_width=True):
+        if st.button("Import UI Pack", width="stretch"):
             if not ui_files:
                 st.warning("Upload both the XML and PNG for the UI pack.")
             else:
@@ -4534,10 +4702,10 @@ with tabs[4]:
         st.markdown("##### Quick import")
         zip_file = st.file_uploader("Upload UI pack zip", type=["zip"])
         zip_name = st.text_input("Pack name for zip", value="Imported_Pack")
-        if zip_file and st.button("Extract zip to UI pack library", use_container_width=True):
+        if zip_file and st.button("Extract zip to UI pack library", width="stretch"):
             extracted = extract_ui_pack_zip(zip_file.getvalue(), ui_root, zip_name)
             st.success(f"Extracted to {extracted}")
-        if st.button("Scan UI Pack Folder", use_container_width=True):
+        if st.button("Scan UI Pack Folder", width="stretch"):
             st.session_state.ui_pack_scan = find_ui_packs(ui_root)
         packs = st.session_state.get("ui_pack_scan") or find_ui_packs(ui_root)
         if not packs:
@@ -4549,7 +4717,7 @@ with tabs[4]:
             if pack:
                 st.caption(f"XML: {pack['xml']}")
                 st.caption(f"PNG: {pack['png']}")
-                if st.button("Import Selected Pack", use_container_width=True):
+                if st.button("Import Selected Pack", width="stretch"):
                     result = ingest_ui_pack(pack["xml"].read_bytes(), pack["png"].read_bytes(), selected_pack)
                     if result.get("ok"):
                         st.success(result.get("message"))
@@ -4581,7 +4749,7 @@ with tabs[4]:
             analyze_keep = analyze_cols[2].checkbox("Keep master", value=True)
             if analyze_run_ocr and pytesseract is None:
                 st.warning("OCR requested but pytesseract is not installed.")
-            if st.button("Analyze sheet", use_container_width=True):
+            if st.button("Analyze sheet", width="stretch"):
                 result = analyze_atlas_sheet(
                     selected_sheet,
                     run_ocr=analyze_run_ocr,
@@ -4607,7 +4775,7 @@ with tabs[4]:
                                     for g in groups
                                 ]
                             ),
-                            use_container_width=True,
+                            width="stretch",
                         )
                     preview_path = build_sprite_preview(result.get("sheet", {}))
                     if preview_path:
@@ -4620,7 +4788,7 @@ with tabs[4]:
         seq_name = st.text_input("Sequence name", key="seq_store_name")
         seq_payload_text = st.text_area("Sequence payload (JSON)", height=100, key="seq_store_payload")
         seq_actions = st.columns(3)
-        if seq_actions[0].button("Save Sequence (SQLite)", use_container_width=True):
+        if seq_actions[0].button("Save Sequence (SQLite)", width="stretch"):
             if seq_name and seq_payload_text:
                 try:
                     payload = json.loads(seq_payload_text)
@@ -4633,7 +4801,7 @@ with tabs[4]:
         all_sequences = list_sequences()
         seq_list = all_sequences["name"].tolist() if not all_sequences.empty else []
         selected_seq = seq_actions[1].selectbox("Load saved", options=[""] + seq_list, index=0, key="seq_load_select")
-        if seq_actions[2].button("Load to payload box", use_container_width=True):
+        if seq_actions[2].button("Load to payload box", width="stretch"):
             if selected_seq:
                 payload = load_sequence_payload(selected_seq)
                 if payload is None:
@@ -4644,7 +4812,7 @@ with tabs[4]:
             else:
                 st.info("Select a saved sequence to load.")
         if not all_sequences.empty:
-            st.dataframe(all_sequences, use_container_width=True)
+            st.dataframe(all_sequences, width="stretch")
     sprite_js = Path("static/sprite_player.js").read_text() if Path("static/sprite_player.js").exists() else ""
     sprite_manifest = Path("static/sprite_manifest.json").read_text() if Path("static/sprite_manifest.json").exists() else "{}"
     sprite_images = {}
