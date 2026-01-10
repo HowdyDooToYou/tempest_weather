@@ -2835,57 +2835,68 @@ with tabs[0]:
         },
     ]
 
-    st.markdown("<div class='metric-expanders'>", unsafe_allow_html=True)
-    cols = st.columns(2)
+    # Metric selectors tucked into an accordion; temp stays pre-selected by default.
     for idx, metric in enumerate(metrics):
-        col = cols[idx % 2]
-        label = metric_label(metric["label"], metric["value"], metric["unit"], metric["delta"])
         toggle_key = f"metric_toggle_{metric.get('key', idx)}"
         if toggle_key not in st.session_state:
             st.session_state[toggle_key] = metric.get("key") == "temp"
-        open_now = col.checkbox(label, value=st.session_state[toggle_key], key=toggle_key)
-        if open_now:
-            st.metric(metric["label"], metric["value"], metric["delta"])
-            if metric["df"] is not None:
-                if metric.get("key") == "aqi" and "value" in metric["df"]:
-                    avg_val = float(metric["df"]["value"].mean())
-                    base_chart = (
-                        alt.Chart(metric["df"])
-                        .mark_line()
-                        .encode(
-                            x=alt.X("time:T", title="Time"),
-                            y=alt.Y("value:Q", title=None),
-                            color=alt.Color(
-                                "metric:N",
-                                legend=alt.Legend(title=None),
-                                scale=alt.Scale(scheme=CHART_SCHEME),
-                            ),
-                            tooltip=["time:T", "metric:N", alt.Tooltip("value:Q", format=".2f")],
-                        )
+
+    with st.expander("Metric selectors", expanded=False):
+        selector_cols = st.columns(2)
+        for idx, metric in enumerate(metrics):
+            col = selector_cols[idx % 2]
+            label = metric_label(metric["label"], metric["value"], metric["unit"], metric["delta"])
+            toggle_key = f"metric_toggle_{metric.get('key', idx)}"
+            st.session_state[toggle_key] = col.checkbox(label, value=st.session_state[toggle_key], key=toggle_key)
+
+    st.markdown("<div class='metric-expanders'>", unsafe_allow_html=True)
+    display_cols = st.columns(2)
+    for idx, metric in enumerate(metrics):
+        col = display_cols[idx % 2]
+        toggle_key = f"metric_toggle_{metric.get('key', idx)}"
+        if not st.session_state.get(toggle_key):
+            continue
+        col.metric(metric["label"], metric["value"], metric["delta"])
+        if metric["df"] is not None:
+            if metric.get("key") == "aqi" and "value" in metric["df"]:
+                avg_val = float(metric["df"]["value"].mean())
+                base_chart = (
+                    alt.Chart(metric["df"])
+                    .mark_line()
+                    .encode(
+                        x=alt.X("time:T", title="Time"),
+                        y=alt.Y("value:Q", title=None),
+                        color=alt.Color(
+                            "metric:N",
+                            legend=alt.Legend(title=None),
+                            scale=alt.Scale(scheme=CHART_SCHEME),
+                        ),
+                        tooltip=["time:T", "metric:N", alt.Tooltip("value:Q", format=".2f")],
                     )
-                    avg_df = pd.DataFrame({"avg": [avg_val], "label": [f"Avg {avg_val:.0f}"]})
-                    avg_rule = alt.Chart(avg_df).mark_rule(color="#f2a85b", strokeDash=[4, 4]).encode(y="avg:Q")
-                    avg_label = (
-                        alt.Chart(avg_df)
-                        .mark_text(align="left", dx=6, dy=-6, color="#f2a85b")
-                        .encode(y="avg:Q", text="label:N")
-                    )
-                    layered = (
-                        alt.layer(base_chart, avg_rule, avg_label)
-                        .properties(height=220)
-                        .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
-                        .configure_legend(labelColor="#cfd6e5", titleColor="#cfd6e5")
-                        .configure_title(color="#cfd6e5")
-                        .interactive()
-                    )
-                    st.altair_chart(layered, width="stretch")
-                else:
-                    st.altair_chart(
-                        clean_chart(metric["df"], height=220, title=None),
-                        width="stretch",
-                    )
+                )
+                avg_df = pd.DataFrame({"avg": [avg_val], "label": [f"Avg {avg_val:.0f}"]})
+                avg_rule = alt.Chart(avg_df).mark_rule(color="#f2a85b", strokeDash=[4, 4]).encode(y="avg:Q")
+                avg_label = (
+                    alt.Chart(avg_df)
+                    .mark_text(align="left", dx=6, dy=-6, color="#f2a85b")
+                    .encode(y="avg:Q", text="label:N")
+                )
+                layered = (
+                    alt.layer(base_chart, avg_rule, avg_label)
+                    .properties(height=220)
+                    .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
+                    .configure_legend(labelColor="#cfd6e5", titleColor="#cfd6e5")
+                    .configure_title(color="#cfd6e5")
+                    .interactive()
+                )
+                col.altair_chart(layered, width="stretch")
             else:
-                st.info("No data available for this metric in the selected window.")
+                col.altair_chart(
+                    clean_chart(metric["df"], height=220, title=None),
+                    width="stretch",
+                )
+        else:
+            col.info("No data available for this metric in the selected window.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
