@@ -49,7 +49,7 @@ AIRLINK_RAW_TABLE = resolve_table(["airlink_raw_all", "airlink_raw"])
 RAW_EVENTS_TABLE = resolve_table(["raw_events"])
 
 st.set_page_config(
-    page_title="Weather & Air Quality Dashboard",
+    page_title="Tempest Air & Weather",
     layout="wide"
 )
 
@@ -1284,31 +1284,51 @@ def latest_ts_str(ts_epoch):
 
 
 def clean_chart(data, height=240, title=None):
-    chart = (
+    """Shared line chart with smooth curves and nearest-hover crosshair."""
+    nearest = alt.selection(type="single", nearest=True, on="mouseover", fields=["time"], empty="none")
+
+    base = alt.Chart(data).encode(
+        x=alt.X("time:T", title="Time"),
+        y=alt.Y("value:Q", title=None),
+        color=alt.Color("metric:N", legend=alt.Legend(title=None), scale=alt.Scale(scheme=CHART_SCHEME)),
+    )
+
+    line = base.mark_line(interpolate="monotone", strokeWidth=2)
+
+    selectors = (
         alt.Chart(data)
-        .mark_line()
+        .mark_point(opacity=0)
+        .encode(x="time:T")
+        .add_params(nearest)
+    )
+
+    points = base.mark_circle(size=40).transform_filter(nearest)
+
+    text = base.mark_text(align="left", dx=8, dy=-8, color="#cfd6e5").encode(
+        text=alt.condition(nearest, alt.Text("value:Q", format=".2f"), alt.value("")),
+    )
+
+    rule = (
+        alt.Chart(data)
+        .mark_rule(color="#8fa0c2", strokeDash=[4, 2])
         .encode(
-            x=alt.X("time:T", title="Time"),
-            y=alt.Y("value:Q", title=None),
-            color=alt.Color(
-                "metric:N",
-                legend=alt.Legend(title=None),
-                scale=alt.Scale(scheme=CHART_SCHEME),
-            ),
+            x="time:T",
+            opacity=alt.condition(nearest, alt.value(0.5), alt.value(0)),
             tooltip=["time:T", "metric:N", alt.Tooltip("value:Q", format=".2f")],
         )
-        .properties(height=height)
-        .configure_axis(
-            labelColor="#cfd6e5",
-            titleColor="#cfd6e5",
-            gridColor="#1f252f"
-        )
+        .transform_filter(nearest)
+    )
+
+    chart = alt.layer(line, selectors, points, rule, text).properties(height=height)
+    if title:
+        chart = chart.properties(title=title)
+
+    return (
+        chart
+        .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
         .configure_legend(labelColor="#cfd6e5", titleColor="#cfd6e5")
         .configure_title(color="#cfd6e5")
     )
-    if title:
-        chart = chart.properties(title=title)
-    return chart.interactive()
 
 
 def bar_chart(data, height=200, title=None, color="#61a5ff"):
@@ -1640,34 +1660,33 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
                 except Exception:
                     return False, "Ping failed"
 
+            # Consolidated ping row (buttons aligned with connection summary)
+            ping_cols = st.columns(len(statuses))
+            for col, src in zip(ping_cols, statuses):
+                target = PING_TARGETS.get(src["name"]) or (PING_TARGETS.get("Tempest Hub") if src["name"] == "Tempest Station" else None)
+                disabled = not target
+                with col:
+                    if st.button(f"Ping {src['name']}", key=f"ping_{src['name']}", disabled=disabled):
+                        ok, msg = ping_device(target)
+                        st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
+                    result = st.session_state.ping_results.get(src["name"])
+                    if result and time.time() - result[2] < 6:
+                        ok, msg, _ = result
+                        status_label = "OK" if ok else "WARN"
+                        st.markdown(
+                            f"<div class='ping-toast'>{status_label}: {src['name']} - {msg}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    elif disabled:
+                        st.markdown("<div class='ingest-help'>Set ping target in PING_TARGETS.</div>", unsafe_allow_html=True)
+
+            # Detail blocks (no extra ping buttons inside)
             for src in statuses:
-                target = PING_TARGETS.get(src["name"])
-                if not target and src["name"] == "Tempest Station":
-                    target = PING_TARGETS.get("Tempest Hub")
-                ping_disabled = not target
                 expander_title = f"{src['name']} — {status_labels[src['status']]}"
                 with st.expander(expander_title, expanded=True):
                     st.markdown(f"**Status:** {status_labels[src['status']]}")
                     st.markdown(f"**Latency/Load:** {src['latency_text']} - {src['load_text']}")
                     st.markdown(f"**Last seen:** {src['last_seen']}")
-                    if st.button(
-                        "ping",
-                        key=f"ping_{src['name']}",
-                        disabled=ping_disabled,
-                    ):
-                        ok, msg = ping_device(target)
-                        st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
-                    result = st.session_state.ping_results.get(src["name"])
-                    if result:
-                        ok, msg, ts = result
-                        if time.time() - ts < 6:
-                            status_label = "OK" if ok else "WARN"
-                            st.markdown(
-                                f"<div class='ping-toast'>{status_label}: {src['name']} - {msg}</div>",
-                                unsafe_allow_html=True,
-                            )
-                    elif ping_disabled:
-                        st.markdown(f"INFO: {src['name']}: set ping target in `PING_TARGETS` to enable.")
 
 def daily_extremes(df, time_col, value_cols):
     if df is None or df.empty:
@@ -2609,7 +2628,7 @@ with title_cols[0]:
     st.markdown(
         f"""
         <div class='hero-glow'>
-          <div class='dash-title'>Weather & Air Quality Dashboard</div>
+          <div class='dash-title'>Tempest Air & Weather</div>
           <div class="header-badges">
             <div class="sun-badge">
               <span class="{ 'sun-icon sunrise-day' if is_daytime else 'moon-icon sunrise-night' }"></span>

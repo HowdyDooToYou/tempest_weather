@@ -18,6 +18,7 @@ Streamlit dashboard for monitoring Tempest weather and AirLink air-quality data 
 - Python 3.10+ (tested on 3.12)
 - Dependencies: `streamlit`, `pandas`, `altair`, `requests` (install with `pip install streamlit pandas altair requests`)
 - Tempest/AirLink data available in `data/tempest.db` (and related tables)
+- Continuous internet access for collectors, the Streamlit client, and any AI/forecast calls (HTTPS out); LAN access to the Tempest Hub/AirLink endpoints.
 
 ## Quick start
 1) Create a virtual environment (recommended):
