@@ -1284,42 +1284,17 @@ def latest_ts_str(ts_epoch):
 
 
 def clean_chart(data, height=240, title=None):
-    """Shared line chart with smooth curves and nearest-hover crosshair."""
-    nearest = alt.selection(type="single", nearest=True, on="mouseover", fields=["time"], empty="none")
-
-    base = alt.Chart(data).encode(
-        x=alt.X("time:T", title="Time"),
-        y=alt.Y("value:Q", title=None),
-        color=alt.Color("metric:N", legend=alt.Legend(title=None), scale=alt.Scale(scheme=CHART_SCHEME)),
-    )
-
-    line = base.mark_line(interpolate="monotone", strokeWidth=2)
-
-    selectors = (
+    """Shared line chart without hover overlays for better performance."""
+    chart = (
         alt.Chart(data)
-        .mark_point(opacity=0)
-        .encode(x="time:T")
-        .add_params(nearest)
-    )
-
-    points = base.mark_circle(size=40).transform_filter(nearest)
-
-    text = base.mark_text(align="left", dx=8, dy=-8, color="#cfd6e5").encode(
-        text=alt.condition(nearest, alt.Text("value:Q", format=".2f"), alt.value("")),
-    )
-
-    rule = (
-        alt.Chart(data)
-        .mark_rule(color="#8fa0c2", strokeDash=[4, 2])
+        .mark_line(interpolate="monotone", strokeWidth=2)
         .encode(
-            x="time:T",
-            opacity=alt.condition(nearest, alt.value(0.5), alt.value(0)),
-            tooltip=["time:T", "metric:N", alt.Tooltip("value:Q", format=".2f")],
+            x=alt.X("time:T", title="Time"),
+            y=alt.Y("value:Q", title=None),
+            color=alt.Color("metric:N", legend=alt.Legend(title=None), scale=alt.Scale(scheme=CHART_SCHEME)),
         )
-        .transform_filter(nearest)
+        .properties(height=height)
     )
-
-    chart = alt.layer(line, selectors, points, rule, text).properties(height=height)
     if title:
         chart = chart.properties(title=title)
 
@@ -1338,7 +1313,6 @@ def bar_chart(data, height=200, title=None, color="#61a5ff"):
         .encode(
             x=alt.X("label:N", title=None, sort=None),
             y=alt.Y("value:Q", title=None),
-            tooltip=["label:N", alt.Tooltip("value:Q", format=".1f")],
         )
         .properties(height=height)
         .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
@@ -2199,6 +2173,14 @@ def story_lines(tempest_df, airlink_df, window_desc: str):
 # ------------------------
 st.sidebar.header("Controls")
 
+if "fast_view" not in st.session_state:
+    st.session_state.fast_view = True
+fast_view = st.sidebar.toggle(
+    "Fast view",
+    key="fast_view",
+    help="Show Overview only for quicker loads. Turn off for full tabs.",
+)
+
 if "hours" not in st.session_state:
     st.session_state.hours = 24
 if "filter_mode" not in st.session_state:
@@ -2749,7 +2731,8 @@ dashboard_payload = {
     "current_wind": current_wind,
     "current_pressure": current_pressure,
 }
-tabs = st.tabs(["Overview", "Trends", "Comparisons", "Raw"])
+tab_labels = ["Overview"] if fast_view else ["Overview", "Trends", "Comparisons", "Raw"]
+tabs = st.tabs(tab_labels)
 
 # Overview tab
 with tabs[0]:
@@ -2761,6 +2744,8 @@ with tabs[0]:
         """,
         unsafe_allow_html=True,
     )
+    if fast_view:
+        st.info("Fast view is on. Disable it in the sidebar to see Trends, Comparisons, and Raw.")
     aqi_delta = delta_over_window(airlink["aqi_pm25"]) if airlink is not None and not airlink.empty and "aqi_pm25" in airlink else None
 
     def metric_label(label, value, unit="", sub=None):
@@ -2892,7 +2877,6 @@ with tabs[0]:
                                 legend=alt.Legend(title=None),
                                 scale=alt.Scale(scheme=CHART_SCHEME),
                             ),
-                            tooltip=["time:T", "metric:N", alt.Tooltip("value:Q", format=".2f")],
                         )
                     )
                     avg_df = pd.DataFrame({"avg": [avg_val], "label": [f"Avg {avg_val:.0f}"]})
@@ -2923,288 +2907,288 @@ with tabs[0]:
 
     # Trends tab
 
-with tabs[1]:
-    st.subheader("Trends")
-    chart_specs = []
+if not fast_view:
+    with tabs[1]:
+        st.subheader("Trends")
+        chart_specs = []
 
-    if tempest is not None and not tempest.empty:
-        def render_temp_heat():
-            temp_long = tempest.melt(
-                id_vars=["time"],
-                value_vars=["air_temperature_f", "heat_index_f"],
-                var_name="metric",
-            )
-            temp_long["metric"] = temp_long["metric"].map(
-                {"air_temperature_f": "Air Temperature", "heat_index_f": "Heat Index"}
-            )
-            st.markdown(
-                "<div class='chart-header'>Temperature vs Heat Index"
-                "<span class='info-icon' title='Core temperature trend alongside perceived heat index.'>i</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.altair_chart(clean_chart(temp_long, height=280, title=None), width="stretch")
-
-        chart_specs.append({"key": "temp_heat", "label": "Temperature vs Heat Index", "render": render_temp_heat})
-
-        def render_wind():
-            wind_long = tempest.melt(
-                id_vars=["time"],
-                value_vars=["wind_speed_mph", "wind_gust_mph"],
-                var_name="metric",
-                value_name="value",
-            )
-            wind_long["metric"] = wind_long["metric"].map(
-                {"wind_speed_mph": "Wind Speed", "wind_gust_mph": "Gust"}
-            )
-            st.markdown(
-                "<div class='chart-header'>Wind Speed & Gust"
-                "<span class='info-icon' title='Sustained wind versus gust peaks over the selected window.'>i</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.altair_chart(clean_chart(wind_long, height=240, title=None), width="stretch")
-
-        chart_specs.append({"key": "wind", "label": "Wind Speed & Gust", "render": render_wind})
-
-        def render_pressure():
-            pressure_long = tempest[["time", "pressure_inhg"]].rename(columns={"pressure_inhg": "value"})
-            pressure_long["metric"] = "Pressure (inHg)"
-            st.markdown(
-                "<div class='chart-header'>Pressure Trend"
-                "<span class='info-icon' title='Barometric pressure changes indicate approaching or clearing systems.'>i</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.altair_chart(clean_chart(pressure_long, height=240, title=None), width="stretch")
-
-        chart_specs.append({"key": "pressure", "label": "Pressure Trend", "render": render_pressure})
-
-        if "pressure_inhg" in tempest:
-            def render_pressure_rate():
-                pressure_rate = tempest[["time", "pressure_inhg"]].copy()
-                pressure_rate["hours"] = pressure_rate["time"].diff().dt.total_seconds() / 3600
-                pressure_rate["value"] = pressure_rate["pressure_inhg"].diff() / pressure_rate["hours"]
-                pressure_rate["metric"] = "Pressure Change (inHg/hr)"
-                pressure_rate = pressure_rate.dropna()
-                if pressure_rate.empty:
-                    st.info("No pressure change data in window.")
-                    return
+        if tempest is not None and not tempest.empty:
+            def render_temp_heat():
+                temp_long = tempest.melt(
+                    id_vars=["time"],
+                    value_vars=["air_temperature_f", "heat_index_f"],
+                    var_name="metric",
+                )
+                temp_long["metric"] = temp_long["metric"].map(
+                    {"air_temperature_f": "Air Temperature", "heat_index_f": "Heat Index"}
+                )
                 st.markdown(
-                    "<div class='chart-header'>Pressure Change Rate"
-                    "<span class='info-icon' title='Rate of pressure change per hour; faster drops can signal storms.'>i</span></div>",
+                    "<div class='chart-header'>Temperature vs Heat Index"
+                    "<span class='info-icon' title='Core temperature trend alongside perceived heat index.'>i</span></div>",
                     unsafe_allow_html=True,
                 )
-                st.altair_chart(
-                    clean_chart(pressure_rate[["time", "value", "metric"]], height=220, title=None),
-                    width="stretch",
+                st.altair_chart(clean_chart(temp_long, height=280, title=None), width="stretch")
+
+            chart_specs.append({"key": "temp_heat", "label": "Temperature vs Heat Index", "render": render_temp_heat})
+
+            def render_wind():
+                wind_long = tempest.melt(
+                    id_vars=["time"],
+                    value_vars=["wind_speed_mph", "wind_gust_mph"],
+                    var_name="metric",
+                    value_name="value",
                 )
-
-            chart_specs.append({"key": "pressure_rate", "label": "Pressure Change Rate", "render": render_pressure_rate})
-
-        if "battery" in tempest:
-            def render_battery():
-                battery_long = tempest[["time", "battery"]].rename(columns={"battery": "value"})
-                battery_long["metric"] = "Battery (V)"
+                wind_long["metric"] = wind_long["metric"].map(
+                    {"wind_speed_mph": "Wind Speed", "wind_gust_mph": "Gust"}
+                )
                 st.markdown(
-                    "<div class='chart-header'>Battery Trend"
-                    "<span class='info-icon' title='Battery voltage trend to catch power drops early.'>i</span></div>",
+                    "<div class='chart-header'>Wind Speed & Gust"
+                    "<span class='info-icon' title='Sustained wind versus gust peaks over the selected window.'>i</span></div>",
                     unsafe_allow_html=True,
                 )
-                st.altair_chart(clean_chart(battery_long, height=220, title=None), width="stretch")
+                st.altair_chart(clean_chart(wind_long, height=240, title=None), width="stretch")
 
-            chart_specs.append({"key": "battery", "label": "Battery Trend", "render": render_battery})
+            chart_specs.append({"key": "wind", "label": "Wind Speed & Gust", "render": render_wind})
 
-        if "rain_mm" in tempest:
-            def render_rain():
-                rain_long = tempest[["time", "rain_mm"]].rename(columns={"rain_mm": "value"})
-                rain_long["metric"] = "Rain Accumulation (mm)"
-                rain_chart = (
+            def render_pressure():
+                pressure_long = tempest[["time", "pressure_inhg"]].rename(columns={"pressure_inhg": "value"})
+                pressure_long["metric"] = "Pressure (inHg)"
+                st.markdown(
+                    "<div class='chart-header'>Pressure Trend"
+                    "<span class='info-icon' title='Barometric pressure changes indicate approaching or clearing systems.'>i</span></div>",
+                    unsafe_allow_html=True,
+                )
+                st.altair_chart(clean_chart(pressure_long, height=240, title=None), width="stretch")
+
+            chart_specs.append({"key": "pressure", "label": "Pressure Trend", "render": render_pressure})
+
+            if "pressure_inhg" in tempest:
+                def render_pressure_rate():
+                    pressure_rate = tempest[["time", "pressure_inhg"]].copy()
+                    pressure_rate["hours"] = pressure_rate["time"].diff().dt.total_seconds() / 3600
+                    pressure_rate["value"] = pressure_rate["pressure_inhg"].diff() / pressure_rate["hours"]
+                    pressure_rate["metric"] = "Pressure Change (inHg/hr)"
+                    pressure_rate = pressure_rate.dropna()
+                    if pressure_rate.empty:
+                        st.info("No pressure change data in window.")
+                        return
+                    st.markdown(
+                        "<div class='chart-header'>Pressure Change Rate"
+                        "<span class='info-icon' title='Rate of pressure change per hour; faster drops can signal storms.'>i</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.altair_chart(
+                        clean_chart(pressure_rate[["time", "value", "metric"]], height=220, title=None),
+                        width="stretch",
+                    )
+
+                chart_specs.append({"key": "pressure_rate", "label": "Pressure Change Rate", "render": render_pressure_rate})
+
+            if "battery" in tempest:
+                def render_battery():
+                    battery_long = tempest[["time", "battery"]].rename(columns={"battery": "value"})
+                    battery_long["metric"] = "Battery (V)"
+                    st.markdown(
+                        "<div class='chart-header'>Battery Trend"
+                        "<span class='info-icon' title='Battery voltage trend to catch power drops early.'>i</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.altair_chart(clean_chart(battery_long, height=220, title=None), width="stretch")
+
+                chart_specs.append({"key": "battery", "label": "Battery Trend", "render": render_battery})
+
+            if "rain_mm" in tempest:
+                def render_rain():
+                    rain_long = tempest[["time", "rain_mm"]].rename(columns={"rain_mm": "value"})
+                    rain_long["metric"] = "Rain Accumulation (mm)"
+                    rain_chart = (
                     alt.Chart(rain_long)
                     .mark_line(interpolate="step-after")
                     .encode(
                         x=alt.X("time:T", title="Time"),
                         y=alt.Y("value:Q", title="Rain (mm)"),
-                        tooltip=["time:T", alt.Tooltip("value:Q", format=".2f")],
                     )
-                    .properties(height=220)
-                    .interactive()
-                    .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
-                    .configure_title(color="#cfd6e5")
-                )
+                        .properties(height=220)
+                        .interactive()
+                        .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
+                        .configure_title(color="#cfd6e5")
+                    )
+                    st.markdown(
+                        "<div class='chart-header'>Rain Accumulation"
+                        "<span class='info-icon' title='Cumulative rain over the selected window.'>i</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.altair_chart(rain_chart, width="stretch")
+
+                chart_specs.append({"key": "rain", "label": "Rain Accumulation", "render": render_rain})
+
+            if "wind_dir_deg" in tempest:
+                def render_wind_dir():
+                    def bin_dir(deg):
+                        if pd.isna(deg):
+                            return None
+                        return compass_dir(deg)
+
+                    dir_counts = tempest["wind_dir_deg"].apply(bin_dir).value_counts().reset_index()
+                    dir_counts.columns = ["label", "value"]
+                    if dir_counts.empty:
+                        st.info("No wind direction data in window.")
+                        return
+                    st.markdown(
+                        "<div class='chart-header'>Wind Direction Frequency"
+                        "<span class='info-icon' title='Dominant wind directions during the window.'>i</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.altair_chart(bar_chart(dir_counts, height=200, title=None, color="#61a5ff"), width="stretch")
+
+                chart_specs.append({"key": "wind_dir", "label": "Wind Direction Frequency", "render": render_wind_dir})
+
+            if "solar_radiation" in tempest and "uv" in tempest:
+                def render_solar_uv():
+                    solar_uv = tempest.melt(
+                        id_vars=["time"],
+                        value_vars=["solar_radiation", "uv"],
+                        var_name="metric",
+                        value_name="value",
+                    )
+                    solar_uv["metric"] = solar_uv["metric"].map(
+                        {"solar_radiation": "Solar Radiation (W/m?)", "uv": "UV Index"}
+                    )
+                    st.markdown(
+                        "<div class='chart-header'>Solar Radiation & UV"
+                        "<span class='info-icon' title='Sunlight intensity and UV index across the window.'>i</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.altair_chart(clean_chart(solar_uv, height=240, title=None), width="stretch")
+
+                chart_specs.append({"key": "solar_uv", "label": "Solar Radiation & UV", "render": render_solar_uv})
+
+        if airlink is not None and not airlink.empty:
+            def render_aqi():
+                st.subheader("?? Outdoor ? AirLink")
+                aqi_long = airlink[["time", "aqi_pm25"]].rename(columns={"aqi_pm25": "value"})
+                aqi_long["metric"] = "AQI (PM2.5)"
                 st.markdown(
-                    "<div class='chart-header'>Rain Accumulation"
-                    "<span class='info-icon' title='Cumulative rain over the selected window.'>i</span></div>",
+                    "<div class='chart-header'>AQI Over Time"
+                    "<span class='info-icon' title='Tracks PM2.5 air quality index across the selected window.'>i</span></div>",
                     unsafe_allow_html=True,
                 )
-                st.altair_chart(rain_chart, width="stretch")
+                st.altair_chart(clean_chart(aqi_long, height=240, title=None), width="stretch")
 
-            chart_specs.append({"key": "rain", "label": "Rain Accumulation", "render": render_rain})
+            chart_specs.append({"key": "aqi", "label": "AQI Over Time", "render": render_aqi})
 
-        if "wind_dir_deg" in tempest:
-            def render_wind_dir():
-                def bin_dir(deg):
-                    if pd.isna(deg):
-                        return None
-                    return compass_dir(deg)
-
-                dir_counts = tempest["wind_dir_deg"].apply(bin_dir).value_counts().reset_index()
-                dir_counts.columns = ["label", "value"]
-                if dir_counts.empty:
-                    st.info("No wind direction data in window.")
-                    return
-                st.markdown(
-                    "<div class='chart-header'>Wind Direction Frequency"
-                    "<span class='info-icon' title='Dominant wind directions during the window.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(bar_chart(dir_counts, height=200, title=None, color="#61a5ff"), width="stretch")
-
-            chart_specs.append({"key": "wind_dir", "label": "Wind Direction Frequency", "render": render_wind_dir})
-
-        if "solar_radiation" in tempest and "uv" in tempest:
-            def render_solar_uv():
-                solar_uv = tempest.melt(
+            def render_pm_components():
+                pm_long = airlink.melt(
                     id_vars=["time"],
-                    value_vars=["solar_radiation", "uv"],
+                    value_vars=["pm_1", "pm_2p5", "pm_10"],
                     var_name="metric",
                     value_name="value",
                 )
-                solar_uv["metric"] = solar_uv["metric"].map(
-                    {"solar_radiation": "Solar Radiation (W/m?)", "uv": "UV Index"}
-                )
+                pm_long["metric"] = pm_long["metric"].map({"pm_1": "PM1", "pm_2p5": "PM2.5", "pm_10": "PM10"})
                 st.markdown(
-                    "<div class='chart-header'>Solar Radiation & UV"
-                    "<span class='info-icon' title='Sunlight intensity and UV index across the window.'>i</span></div>",
+                    "<div class='chart-header'>PM Components"
+                    "<span class='info-icon' title='Breakdown of particulate sizes to compare PM1/PM2.5/PM10.'>i</span></div>",
                     unsafe_allow_html=True,
                 )
-                st.altair_chart(clean_chart(solar_uv, height=240, title=None), width="stretch")
+                st.altair_chart(clean_chart(pm_long, height=240, title=None), width="stretch")
 
-            chart_specs.append({"key": "solar_uv", "label": "Solar Radiation & UV", "render": render_solar_uv})
+            chart_specs.append({"key": "pm_components", "label": "PM Components", "render": render_pm_components})
 
-    if airlink is not None and not airlink.empty:
-        def render_aqi():
-            st.subheader("?? Outdoor ? AirLink")
-            aqi_long = airlink[["time", "aqi_pm25"]].rename(columns={"aqi_pm25": "value"})
-            aqi_long["metric"] = "AQI (PM2.5)"
+        if chart_specs:
+            options = [spec["key"] for spec in chart_specs]
+            labels = {spec["key"]: spec["label"] for spec in chart_specs}
+            saved_order = st.session_state.get("chart_order_trends", [])
+            default_order = [k for k in saved_order if k in options] + [k for k in options if k not in saved_order]
+            selection = st.multiselect(
+                "Choose chart order",
+                options=options,
+                default=default_order,
+                format_func=lambda k: labels[k],
+                help="Drag to reorder or deselect to hide charts.",
+            )
+            st.session_state["chart_order_trends"] = selection
+            for key in selection:
+                spec = next((s for s in chart_specs if s["key"] == key), None)
+                if spec:
+                    spec["render"]()
+        else:
+            st.info("No chartable data in this window.")
+
+if not fast_view:
+    # Comparisons tab
+    with tabs[2]:
+        st.subheader("Comparisons")
+        if tempest is not None and not tempest.empty:
+            compare = tempest.copy()
+            compare["date"] = compare["time"].dt.date
+            latest_date = compare["date"].max()
+            yesterday_date = latest_date - pd.Timedelta(days=1)
+            compare = compare[compare["date"].isin([latest_date, yesterday_date])]
+            compare["day"] = compare["date"].apply(lambda d: "Today" if d == latest_date else "Yesterday")
+            temp_compare = compare[["time", "air_temperature_f", "day"]].rename(columns={"air_temperature_f": "value"})
+            temp_compare["metric"] = temp_compare["day"]
             st.markdown(
-                "<div class='chart-header'>AQI Over Time"
-                "<span class='info-icon' title='Tracks PM2.5 air quality index across the selected window.'>i</span></div>",
+                "<div class='chart-header'>Today vs Yesterday (Temp)"
+                "<span class='info-icon' title='Overlay of today vs yesterday temperature patterns.'>i</span></div>",
                 unsafe_allow_html=True,
             )
-            st.altair_chart(clean_chart(aqi_long, height=240, title=None), width="stretch")
-
-        chart_specs.append({"key": "aqi", "label": "AQI Over Time", "render": render_aqi})
-
-        def render_pm_components():
-            pm_long = airlink.melt(
-                id_vars=["time"],
-                value_vars=["pm_1", "pm_2p5", "pm_10"],
-                var_name="metric",
-                value_name="value",
+            st.altair_chart(
+                clean_chart(temp_compare, height=260, title=None),
+                width="stretch",
             )
-            pm_long["metric"] = pm_long["metric"].map({"pm_1": "PM1", "pm_2p5": "PM2.5", "pm_10": "PM10"})
-            st.markdown(
-                "<div class='chart-header'>PM Components"
-                "<span class='info-icon' title='Breakdown of particulate sizes to compare PM1/PM2.5/PM10.'>i</span></div>",
-                unsafe_allow_html=True,
+
+        if airlink is not None and not airlink.empty and tempest is not None and not tempest.empty:
+            merged = pd.merge_asof(
+                airlink.sort_values("time"),
+                tempest.sort_values("time"),
+                on="time",
+                direction="nearest",
             )
-            st.altair_chart(clean_chart(pm_long, height=240, title=None), width="stretch")
-
-        chart_specs.append({"key": "pm_components", "label": "PM Components", "render": render_pm_components})
-
-    if chart_specs:
-        options = [spec["key"] for spec in chart_specs]
-        labels = {spec["key"]: spec["label"] for spec in chart_specs}
-        saved_order = st.session_state.get("chart_order_trends", [])
-        default_order = [k for k in saved_order if k in options] + [k for k in options if k not in saved_order]
-        selection = st.multiselect(
-            "Choose chart order",
-            options=options,
-            default=default_order,
-            format_func=lambda k: labels[k],
-            help="Drag to reorder or deselect to hide charts.",
-        )
-        st.session_state["chart_order_trends"] = selection
-        for key in selection:
-            spec = next((s for s in chart_specs if s["key"] == key), None)
-            if spec:
-                spec["render"]()
-    else:
-        st.info("No chartable data in this window.")
-
-# Comparisons tab
-with tabs[2]:
-    st.subheader("Comparisons")
-    if tempest is not None and not tempest.empty:
-        compare = tempest.copy()
-        compare["date"] = compare["time"].dt.date
-        latest_date = compare["date"].max()
-        yesterday_date = latest_date - pd.Timedelta(days=1)
-        compare = compare[compare["date"].isin([latest_date, yesterday_date])]
-        compare["day"] = compare["date"].apply(lambda d: "Today" if d == latest_date else "Yesterday")
-        temp_compare = compare[["time", "air_temperature_f", "day"]].rename(columns={"air_temperature_f": "value"})
-        temp_compare["metric"] = temp_compare["day"]
-        st.markdown(
-            "<div class='chart-header'>Today vs Yesterday (Temp)"
-            "<span class='info-icon' title='Overlay of today vs yesterday temperature patterns.'>i</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.altair_chart(
-            clean_chart(temp_compare, height=260, title=None),
-            width="stretch",
-        )
-
-    if airlink is not None and not airlink.empty and tempest is not None and not tempest.empty:
-        merged = pd.merge_asof(
-            airlink.sort_values("time"),
-            tempest.sort_values("time"),
-            on="time",
-            direction="nearest",
-        )
-        scatter = merged[["wind_speed_mph", "aqi_pm25"]].dropna()
-        if not scatter.empty:
-            chart = (
-                alt.Chart(scatter)
-                .mark_circle(size=60)
-                .encode(
-                    x=alt.X("wind_speed_mph", title="Wind Speed (mph)"),
-                    y=alt.Y("aqi_pm25", title="AQI (PM2.5)"),
+            scatter = merged[["wind_speed_mph", "aqi_pm25"]].dropna()
+            if not scatter.empty:
+                chart = (
+                    alt.Chart(scatter)
+                    .mark_circle(size=60)
+                    .encode(
+                        x=alt.X("wind_speed_mph", title="Wind Speed (mph)"),
+                        y=alt.Y("aqi_pm25", title="AQI (PM2.5)"),
                     color=alt.Color(
                         "aqi_pm25:Q",
                         scale=alt.Scale(scheme="turbo"),
                         legend=alt.Legend(title="AQI"),
                     ),
-                    tooltip=["wind_speed_mph", "aqi_pm25"],
                 )
-                .properties(height=240)
-                .interactive()
-            )
-            st.markdown(
-                "<div class='chart-header'>AQI vs Wind"
-                "<span class='info-icon' title='Shows how air quality shifts with wind speed.'>i</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.altair_chart(chart, width="stretch")
+                    .properties(height=240)
+                    .interactive()
+                )
+                st.markdown(
+                    "<div class='chart-header'>AQI vs Wind"
+                    "<span class='info-icon' title='Shows how air quality shifts with wind speed.'>i</span></div>",
+                    unsafe_allow_html=True,
+                )
+                st.altair_chart(chart, width="stretch")
 
-        comfort = merged[["air_temperature_f", "relative_humidity"]].dropna()
-        if not comfort.empty:
-            def comfort_bucket(row):
-                temp = row["air_temperature_f"]
-                hum = row["relative_humidity"]
-                if temp >= 78 and hum >= 60:
-                    return "Hot"
-                if hum >= 65:
-                    return "Humid"
-                if hum <= 35:
-                    return "Dry"
-                return "Comfortable"
+            comfort = merged[["air_temperature_f", "relative_humidity"]].dropna()
+            if not comfort.empty:
+                def comfort_bucket(row):
+                    temp = row["air_temperature_f"]
+                    hum = row["relative_humidity"]
+                    if temp >= 78 and hum >= 60:
+                        return "Hot"
+                    if hum >= 65:
+                        return "Humid"
+                    if hum <= 35:
+                        return "Dry"
+                    return "Comfortable"
 
-            comfort = comfort.copy()
-            comfort["comfort"] = comfort.apply(comfort_bucket, axis=1)
-            comfort_chart = (
-                alt.Chart(comfort)
-                .mark_circle(size=50, color="#61a5ff")
-                .encode(
-                    x=alt.X("air_temperature_f", title="Temp (F)"),
-                    y=alt.Y("relative_humidity", title="Humidity (%)"),
+                comfort = comfort.copy()
+                comfort["comfort"] = comfort.apply(comfort_bucket, axis=1)
+                comfort_chart = (
+                    alt.Chart(comfort)
+                    .mark_circle(size=50, color="#61a5ff")
+                    .encode(
+                        x=alt.X("air_temperature_f", title="Temp (F)"),
+                        y=alt.Y("relative_humidity", title="Humidity (%)"),
                     color=alt.Color(
                         "comfort:N",
                         scale=alt.Scale(
@@ -3213,86 +3197,51 @@ with tabs[2]:
                         ),
                         legend=alt.Legend(title="Comfort"),
                     ),
-                    tooltip=["air_temperature_f", "relative_humidity", "comfort"],
                 )
-                .properties(height=240)
-                .interactive()
-            )
-            st.markdown(
-                "<div class='chart-header'>Comfort Scatter"
-                "<span class='info-icon' title='Clusters conditions into Comfortable/Dry/Humid/Hot buckets.'>i</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.altair_chart(comfort_chart, width="stretch")
+                    .properties(height=240)
+                    .interactive()
+                )
+                st.markdown(
+                    "<div class='chart-header'>Comfort Scatter"
+                    "<span class='info-icon' title='Clusters conditions into Comfortable/Dry/Humid/Hot buckets.'>i</span></div>",
+                    unsafe_allow_html=True,
+                )
+                st.altair_chart(comfort_chart, width="stretch")
 
-# Raw tab
-with tabs[3]:
-    st.subheader("Raw")
-    storage = get_storage_stats()
-    total_size = storage["db_size"] + storage["assets_size"]
-    st.markdown(
-        f"""
-        <div class="gauge-block">
-          <div class="gauge-header">
-            <div>Storage Health</div>
-            <div>{fmt_bytes(total_size)} total</div>
-          </div>
-          <div class="gauge-muted">
-            Database: {fmt_bytes(storage["db_size"])} · Assets: {fmt_bytes(storage["assets_size"])}
-          </div>
-          <div class="gauge-muted">
-            Rows stored: {storage["total_rows"]:,} · Measurements: {storage["measurements"]:,}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    raw_limit = 500
-    raw_tabs = st.tabs(["Tempest Station", "AirLink", "Tempest Raw", "AirLink Raw", "Hub Raw"])
-
-    with raw_tabs[0]:
-        tempest_raw = load_df(
+if not fast_view:
+    # Raw tab
+    with tabs[3]:
+        st.subheader("Raw")
+        storage = get_storage_stats()
+        total_size = storage["db_size"] + storage["assets_size"]
+        st.markdown(
             f"""
-            SELECT *
-            FROM obs_st
-            WHERE obs_epoch >= :since
-            {tempest_until_clause}
-            ORDER BY obs_epoch DESC
-            LIMIT :limit
+            <div class="gauge-block">
+              <div class="gauge-header">
+                <div>Storage Health</div>
+                <div>{fmt_bytes(total_size)} total</div>
+              </div>
+              <div class="gauge-muted">
+                Database: {fmt_bytes(storage["db_size"])} · Assets: {fmt_bytes(storage["assets_size"])}
+              </div>
+              <div class="gauge-muted">
+                Rows stored: {storage["total_rows"]:,} · Measurements: {storage["measurements"]:,}
+              </div>
+            </div>
             """,
-            {
-                "since": since_epoch,
-                "limit": raw_limit,
-                **({"until": until_epoch} if until_epoch is not None else {}),
-            },
+            unsafe_allow_html=True,
         )
-        if tempest_raw.empty:
-            st.info("No Tempest data in selected window.")
-        else:
-            if "obs_epoch" in tempest_raw:
-                tempest_raw["time"] = epoch_to_dt(tempest_raw["obs_epoch"])
-            if "air_temperature" in tempest_raw:
-                tempest_raw["air_temperature_f"] = c_to_f(tempest_raw["air_temperature"])
-            if "station_pressure" in tempest_raw:
-                tempest_raw["pressure_inhg"] = hpa_to_inhg(tempest_raw["station_pressure"])
-            if "wind_avg" in tempest_raw:
-                tempest_raw["wind_speed_mph"] = mps_to_mph(tempest_raw["wind_avg"])
-            if "wind_gust" in tempest_raw:
-                tempest_raw["wind_gust_mph"] = mps_to_mph(tempest_raw["wind_gust"])
-            if "rain_accumulated" in tempest_raw:
-                tempest_raw["rain_mm"] = tempest_raw["rain_accumulated"].astype(float)
-            st.caption(f"Showing latest {min(raw_limit, len(tempest_raw))} rows.")
-            st.dataframe(tempest_raw, width="stretch")
+        raw_limit = 500
+        raw_tabs = st.tabs(["Tempest Station", "AirLink", "Tempest Raw", "AirLink Raw", "Hub Raw"])
 
-    with raw_tabs[1]:
-        if AIRLINK_TABLE:
-            airlink_obs_raw = load_df(
+        with raw_tabs[0]:
+            tempest_raw = load_df(
                 f"""
                 SELECT *
-                FROM {AIRLINK_TABLE}
-                WHERE ts >= :since
-                {airlink_until_clause}
-                ORDER BY ts DESC
+                FROM obs_st
+                WHERE obs_epoch >= :since
+                {tempest_until_clause}
+                ORDER BY obs_epoch DESC
                 LIMIT :limit
                 """,
                 {
@@ -3301,92 +3250,127 @@ with tabs[3]:
                     **({"until": until_epoch} if until_epoch is not None else {}),
                 },
             )
-        else:
-            airlink_obs_raw = pd.DataFrame()
-        if airlink_obs_raw.empty:
-            st.info("No AirLink data in selected window.")
-        else:
-            if "ts" in airlink_obs_raw:
-                airlink_obs_raw["time"] = epoch_to_dt(airlink_obs_raw["ts"])
-            st.caption(f"Showing latest {min(raw_limit, len(airlink_obs_raw))} rows.")
-            st.dataframe(airlink_obs_raw, width="stretch")
+            if tempest_raw.empty:
+                st.info("No Tempest data in selected window.")
+            else:
+                if "obs_epoch" in tempest_raw:
+                    tempest_raw["time"] = epoch_to_dt(tempest_raw["obs_epoch"])
+                if "air_temperature" in tempest_raw:
+                    tempest_raw["air_temperature_f"] = c_to_f(tempest_raw["air_temperature"])
+                if "station_pressure" in tempest_raw:
+                    tempest_raw["pressure_inhg"] = hpa_to_inhg(tempest_raw["station_pressure"])
+                if "wind_avg" in tempest_raw:
+                    tempest_raw["wind_speed_mph"] = mps_to_mph(tempest_raw["wind_avg"])
+                if "wind_gust" in tempest_raw:
+                    tempest_raw["wind_gust_mph"] = mps_to_mph(tempest_raw["wind_gust"])
+                if "rain_accumulated" in tempest_raw:
+                    tempest_raw["rain_mm"] = tempest_raw["rain_accumulated"].astype(float)
+                st.caption(f"Showing latest {min(raw_limit, len(tempest_raw))} rows.")
+                st.dataframe(tempest_raw, width="stretch")
 
-    with raw_tabs[2]:
-        if RAW_EVENTS_TABLE:
-            tempest_events = load_df(
-                f"""
-                SELECT *
-                FROM {RAW_EVENTS_TABLE}
-                WHERE received_at_epoch >= :since
-                ORDER BY received_at_epoch DESC
-                LIMIT :limit
-                """,
-                {
-                    "since": since_epoch,
-                    "limit": raw_limit,
-                },
-            )
-        else:
-            tempest_events = pd.DataFrame()
-        if tempest_events.empty:
-            st.info("No Tempest raw events in selected window.")
-        else:
-            if "received_at_epoch" in tempest_events:
-                tempest_events["received_at_time"] = epoch_to_dt(tempest_events["received_at_epoch"])
-            st.caption(f"Showing latest {min(raw_limit, len(tempest_events))} rows.")
-            st.dataframe(tempest_events, width="stretch")
+        with raw_tabs[1]:
+            if AIRLINK_TABLE:
+                airlink_obs_raw = load_df(
+                    f"""
+                    SELECT *
+                    FROM {AIRLINK_TABLE}
+                    WHERE ts >= :since
+                    {airlink_until_clause}
+                    ORDER BY ts DESC
+                    LIMIT :limit
+                    """,
+                    {
+                        "since": since_epoch,
+                        "limit": raw_limit,
+                        **({"until": until_epoch} if until_epoch is not None else {}),
+                    },
+                )
+            else:
+                airlink_obs_raw = pd.DataFrame()
+            if airlink_obs_raw.empty:
+                st.info("No AirLink data in selected window.")
+            else:
+                if "ts" in airlink_obs_raw:
+                    airlink_obs_raw["time"] = epoch_to_dt(airlink_obs_raw["ts"])
+                st.caption(f"Showing latest {min(raw_limit, len(airlink_obs_raw))} rows.")
+                st.dataframe(airlink_obs_raw, width="stretch")
 
-    with raw_tabs[3]:
-        if AIRLINK_RAW_TABLE:
-            airlink_raw = load_df(
-                f"""
-                SELECT *
-                FROM {AIRLINK_RAW_TABLE}
-                WHERE received_at_epoch >= :since
-                ORDER BY received_at_epoch DESC
-                LIMIT :limit
-                """,
-                {
-                    "since": since_epoch,
-                    "limit": raw_limit,
-                },
-            )
-        else:
-            airlink_raw = pd.DataFrame()
-        if airlink_raw.empty:
-            st.info("No AirLink raw payloads in selected window.")
-        else:
-            if "received_at_epoch" in airlink_raw:
-                airlink_raw["received_at_time"] = epoch_to_dt(airlink_raw["received_at_epoch"])
-            st.caption(f"Showing latest {min(raw_limit, len(airlink_raw))} rows.")
-            st.dataframe(airlink_raw, width="stretch")
+        with raw_tabs[2]:
+            if RAW_EVENTS_TABLE:
+                tempest_events = load_df(
+                    f"""
+                    SELECT *
+                    FROM {RAW_EVENTS_TABLE}
+                    WHERE received_at_epoch >= :since
+                    ORDER BY received_at_epoch DESC
+                    LIMIT :limit
+                    """,
+                    {
+                        "since": since_epoch,
+                        "limit": raw_limit,
+                    },
+                )
+            else:
+                tempest_events = pd.DataFrame()
+            if tempest_events.empty:
+                st.info("No Tempest raw events in selected window.")
+            else:
+                if "received_at_epoch" in tempest_events:
+                    tempest_events["received_at_time"] = epoch_to_dt(tempest_events["received_at_epoch"])
+                st.caption(f"Showing latest {min(raw_limit, len(tempest_events))} rows.")
+                st.dataframe(tempest_events, width="stretch")
 
-    with raw_tabs[4]:
-        if RAW_EVENTS_TABLE:
-            hub_raw = load_df(
-                f"""
-                SELECT *
-                FROM {RAW_EVENTS_TABLE}
-                WHERE received_at_epoch >= :since
-                  AND (
-                    device_id = :hub_id
-                    OR message_type IN ("connection_opened", "ack")
-                  )
-                ORDER BY received_at_epoch DESC
-                LIMIT :limit
-                """,
-                {
-                    "since": since_epoch,
-                    "limit": raw_limit,
-                    "hub_id": TEMPEST_HUB_ID,
-                },
-            )
-        else:
-            hub_raw = pd.DataFrame()
-        if hub_raw.empty:
-            st.info("No Hub raw events in selected window.")
-        else:
-            if "received_at_epoch" in hub_raw:
-                hub_raw["received_at_time"] = epoch_to_dt(hub_raw["received_at_epoch"])
-            st.caption(f"Showing latest {min(raw_limit, len(hub_raw))} rows.")
-            st.dataframe(hub_raw, width="stretch")
+        with raw_tabs[3]:
+            if AIRLINK_RAW_TABLE:
+                airlink_raw = load_df(
+                    f"""
+                    SELECT *
+                    FROM {AIRLINK_RAW_TABLE}
+                    WHERE received_at_epoch >= :since
+                    ORDER BY received_at_epoch DESC
+                    LIMIT :limit
+                    """,
+                    {
+                        "since": since_epoch,
+                        "limit": raw_limit,
+                    },
+                )
+            else:
+                airlink_raw = pd.DataFrame()
+            if airlink_raw.empty:
+                st.info("No AirLink raw payloads in selected window.")
+            else:
+                if "received_at_epoch" in airlink_raw:
+                    airlink_raw["received_at_time"] = epoch_to_dt(airlink_raw["received_at_epoch"])
+                st.caption(f"Showing latest {min(raw_limit, len(airlink_raw))} rows.")
+                st.dataframe(airlink_raw, width="stretch")
+
+        with raw_tabs[4]:
+            if RAW_EVENTS_TABLE:
+                hub_raw = load_df(
+                    f"""
+                    SELECT *
+                    FROM {RAW_EVENTS_TABLE}
+                    WHERE received_at_epoch >= :since
+                      AND (
+                        device_id = :hub_id
+                        OR message_type IN ("connection_opened", "ack")
+                      )
+                    ORDER BY received_at_epoch DESC
+                    LIMIT :limit
+                    """,
+                    {
+                        "since": since_epoch,
+                        "limit": raw_limit,
+                        "hub_id": TEMPEST_HUB_ID,
+                    },
+                )
+            else:
+                hub_raw = pd.DataFrame()
+            if hub_raw.empty:
+                st.info("No Hub raw events in selected window.")
+            else:
+                if "received_at_epoch" in hub_raw:
+                    hub_raw["received_at_time"] = epoch_to_dt(hub_raw["received_at_epoch"])
+                st.caption(f"Showing latest {min(raw_limit, len(hub_raw))} rows.")
+                st.dataframe(hub_raw, width="stretch")
