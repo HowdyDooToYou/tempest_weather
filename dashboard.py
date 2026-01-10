@@ -2847,7 +2847,7 @@ with tabs[0]:
             col = selector_cols[idx % 2]
             label = metric_label(metric["label"], metric["value"], metric["unit"], metric["delta"])
             toggle_key = f"metric_toggle_{metric.get('key', idx)}"
-            st.session_state[toggle_key] = col.checkbox(label, value=st.session_state[toggle_key], key=toggle_key)
+            col.checkbox(label, value=st.session_state[toggle_key], key=toggle_key)
 
     st.markdown("<div class='metric-expanders'>", unsafe_allow_html=True)
     display_cols = st.columns(2)
