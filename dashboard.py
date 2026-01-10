@@ -3111,8 +3111,6 @@ with tabs[1]:
 
 # Comparisons tab
 with tabs[2]:
-# Comparisons tab
-with tabs[2]:
     st.subheader("Comparisons")
     if tempest is not None and not tempest.empty:
         compare = tempest.copy()
