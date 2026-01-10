@@ -7,7 +7,7 @@ Streamlit dashboard for monitoring Tempest weather and AirLink air-quality data 
 - Trends tab with user-driven chart order (drag/deselect via multiselect).
 - Raw data views for Tempest, AirLink, and hub events.
 - Sidebar controls for window size, date range, theme, and location overrides.
-- Sprite/Sprite Lab assets removed; focused on weather/air data only.
+- [paused] Legacy sprite/"Sprite Lab" assets removed; focused on weather/air data only.
 
 ## Supported devices
 - Tempest Station (weather observations)
