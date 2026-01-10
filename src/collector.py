@@ -24,10 +24,13 @@ RECONNECT_MAX_SEC = 300  # 5 minutes cap
 # Commit batching
 COMMIT_EVERY_N_MESSAGES = 25
 COMMIT_EVERY_SECONDS = 5
+HEARTBEAT_INTERVAL_SEC = 30
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = PROJECT_ROOT / "data" / "tempest.db"
 LOG_PATH = PROJECT_ROOT / "logs" / "collector.log"
+HEARTBEAT_TABLE = "collector_heartbeat"
+HEARTBEAT_NAME = "tempest_collector"
 
 TOKEN = os.getenv("TEMPEST_API_TOKEN")
 if not TOKEN:
@@ -94,15 +97,27 @@ CREATE TABLE IF NOT EXISTS obs_st (
 
 CREATE INDEX IF NOT EXISTS idx_obs_st_epoch
   ON obs_st(obs_epoch);
+
+CREATE TABLE IF NOT EXISTS collector_heartbeat (
+  name TEXT PRIMARY KEY,
+  last_ok_epoch INTEGER,
+  last_error_epoch INTEGER,
+  last_ok_message TEXT,
+  last_error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_collector_heartbeat_last_ok
+  ON collector_heartbeat(last_ok_epoch);
 """
 
 def db_connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
 
     # Durability + crash safety
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA busy_timeout=5000;")
 
     # Base schema (for first run)
     conn.executescript(BASE_SCHEMA_SQL)
@@ -139,6 +154,34 @@ def migrate(conn: sqlite3.Connection) -> None:
         "ON raw_events(payload_hash);"
     )
     conn.commit()
+
+# =====================
+# Heartbeats
+# =====================
+def heartbeat_ok(conn: sqlite3.Connection, epoch: int, message: str) -> None:
+    conn.execute(
+        f"""
+        INSERT INTO {HEARTBEAT_TABLE} (name, last_ok_epoch, last_ok_message)
+        VALUES (?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+          last_ok_epoch=excluded.last_ok_epoch,
+          last_ok_message=excluded.last_ok_message
+        """,
+        (HEARTBEAT_NAME, epoch, message),
+    )
+
+
+def heartbeat_error(conn: sqlite3.Connection, epoch: int, message: str) -> None:
+    conn.execute(
+        f"""
+        INSERT INTO {HEARTBEAT_TABLE} (name, last_error_epoch, last_error)
+        VALUES (?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+          last_error_epoch=excluded.last_error_epoch,
+          last_error=excluded.last_error
+        """,
+        (HEARTBEAT_NAME, epoch, message),
+    )
 
 # =====================
 # Inserts
@@ -233,6 +276,12 @@ def run():
 
     pending = 0
     last_commit = time.time()
+    last_heartbeat = 0.0
+    startup_epoch = int(time.time())
+    heartbeat_ok(conn, startup_epoch, "startup ok")
+    conn.commit()
+    last_commit = time.time()
+    last_heartbeat = last_commit
 
     while True:
         ws = None
@@ -242,6 +291,11 @@ def run():
 
             # reset backoff after successful connect
             reconnect_delay = RECONNECT_BASE_SEC
+            connect_epoch = int(time.time())
+            heartbeat_ok(conn, connect_epoch, "ws connected")
+            conn.commit()
+            last_commit = time.time()
+            last_heartbeat = last_commit
 
             while True:
                 try:
@@ -273,19 +327,29 @@ def run():
                     pending += 1
 
                     now = time.time()
-                    if pending >= COMMIT_EVERY_N_MESSAGES or (now - last_commit) >= COMMIT_EVERY_SECONDS:
+                    heartbeat_due = (now - last_heartbeat) >= HEARTBEAT_INTERVAL_SEC
+                    if heartbeat_due:
+                        heartbeat_ok(conn, int(now), "ingesting")
+                    if pending >= COMMIT_EVERY_N_MESSAGES or (now - last_commit) >= COMMIT_EVERY_SECONDS or heartbeat_due:
                         conn.commit()
                         pending = 0
                         last_commit = now
+                        if heartbeat_due:
+                            last_heartbeat = now
 
                 except WebSocketTimeoutException:
                     # Normal: no message yet, keep looping
                     # Also gives us a chance to flush pending commits on quiet links.
                     now = time.time()
-                    if pending > 0 and (now - last_commit) >= COMMIT_EVERY_SECONDS:
+                    heartbeat_due = (now - last_heartbeat) >= HEARTBEAT_INTERVAL_SEC
+                    if heartbeat_due:
+                        heartbeat_ok(conn, int(now), "connected idle")
+                    if (pending > 0 and (now - last_commit) >= COMMIT_EVERY_SECONDS) or heartbeat_due:
                         conn.commit()
                         pending = 0
                         last_commit = now
+                        if heartbeat_due:
+                            last_heartbeat = now
                     continue
 
         except KeyboardInterrupt:
@@ -299,6 +363,14 @@ def run():
         except Exception as e:
             log(f"Connection error: {repr(e)}")
             traceback.print_exc()
+            try:
+                heartbeat_error(conn, int(time.time()), repr(e))
+                conn.commit()
+                pending = 0
+                last_commit = time.time()
+                last_heartbeat = last_commit
+            except Exception:
+                pass
 
             # flush any pending work
             try:

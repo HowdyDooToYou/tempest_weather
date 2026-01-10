@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import html
 import subprocess
 import time
 from datetime import datetime
@@ -19,6 +20,19 @@ TEMPEST_HUB_ID = 475327
 PING_TARGETS = {
     "AirLink": "192.168.1.19",
     "Tempest Hub": "192.168.1.26",
+}
+COLLECTOR_LABELS = {
+    "airlink_collector": "AirLink Collector",
+    "tempest_collector": "Tempest Collector",
+}
+COLLECTOR_STALE_SECONDS = {
+    "airlink_collector": 180,
+    "tempest_collector": 300,
+}
+COLLECTOR_ERROR_GRACE_SECONDS = 600
+COLLECTOR_COLORS = {
+    "airlink_collector": ("#4bd0c2", "#7be7d9"),
+    "tempest_collector": ("#59c5ff", "#8cc5ff"),
 }
 
 CHART_SCHEME = "tableau10"
@@ -47,6 +61,7 @@ def resolve_table(candidates):
 AIRLINK_TABLE = resolve_table(["airlink_current_obs", "airlink_obs"])
 AIRLINK_RAW_TABLE = resolve_table(["airlink_raw_all", "airlink_raw"])
 RAW_EVENTS_TABLE = resolve_table(["raw_events"])
+HEARTBEAT_TABLE = resolve_table(["collector_heartbeat"])
 
 st.set_page_config(
     page_title="Tempest Air & Weather",
@@ -808,6 +823,17 @@ st.markdown(
         color: #9aa4b5;
         font-size: 0.78rem;
     }
+    .ingest-divider {
+        margin: 10px 0;
+        height: 1px;
+        background: #1f2635;
+        opacity: 0.7;
+    }
+    .ingest-snapshot {
+        margin-top: 6px;
+        color: #9aa4b5;
+        font-size: 0.78rem;
+    }
     .ping-toast {
         margin: 6px 0 2px 0;
         font-size: 0.82rem;
@@ -840,6 +866,18 @@ st.markdown(
         border-radius: 10px;
         border: 1px solid #1b2332;
         background: #0f1520;
+    }
+    .ingest-detail-row.warn {
+        border-color: rgba(255,209,102,0.45);
+        box-shadow: 0 0 0 1px rgba(255,209,102,0.08) inset;
+    }
+    .ingest-detail-row.offline {
+        border-color: rgba(255,123,123,0.45);
+        box-shadow: 0 0 0 1px rgba(255,123,123,0.08) inset;
+    }
+    .ingest-detail-row.alert {
+        border-color: rgba(255,123,123,0.55);
+        box-shadow: 0 0 0 1px rgba(255,123,123,0.14) inset;
     }
     .ingest-detail-row .meta {
         display: flex;
@@ -1004,6 +1042,20 @@ def fmt_time(dt_value):
         return dt_value.strftime("%I:%M %p").lstrip("0")
     except Exception:
         return "--"
+
+
+def html_escape(value):
+    if value is None:
+        return "--"
+    return html.escape(str(value))
+
+
+def collector_row_class(status, error_recent=False):
+    if error_recent:
+        return "ingest-detail-row alert"
+    if status in ("warn", "offline"):
+        return f"ingest-detail-row {status}"
+    return "ingest-detail-row"
 
 
 def fmt_duration(seconds):
@@ -1283,6 +1335,26 @@ def latest_ts_str(ts_epoch):
     return dt.strftime("%Y-%m-%d %I:%M %p")
 
 
+def short_text(text, max_len=90):
+    if not text or pd.isna(text):
+        return ""
+    text = str(text)
+    if len(text) <= max_len:
+        return text
+    return f"{text[:max_len - 3]}..."
+
+
+def normalize_error_message(text):
+    if not text or pd.isna(text):
+        return ""
+    msg = str(text).strip()
+    if msg.startswith("OperationalError(") and msg.endswith(")"):
+        msg = msg[len("OperationalError("):-1].strip("'\"")
+    if "database is locked" in msg.lower():
+        msg = "DB busy (locked)"
+    return short_text(msg, 80)
+
+
 def clean_chart(data, height=240, title=None):
     """Shared line chart without hover overlays for better performance."""
     chart = (
@@ -1435,6 +1507,87 @@ def minutes_since_epoch(epoch, now_ts):
     return (now_ts - pd.to_datetime(epoch, unit="s", utc=True)).total_seconds() / 60
 
 
+def seconds_since_epoch(epoch, now_ts):
+    if epoch is None or pd.isna(epoch):
+        return None
+    return (now_ts - pd.to_datetime(epoch, unit="s", utc=True)).total_seconds()
+
+
+def build_collector_statuses(now_ts):
+    if not HEARTBEAT_TABLE:
+        return []
+    hb_df = load_df(
+        f"""
+        SELECT name, last_ok_epoch, last_error_epoch, last_ok_message, last_error
+        FROM {HEARTBEAT_TABLE}
+        """
+    )
+    if hb_df.empty:
+        return []
+
+    status_label_map = {
+        "ok": "Live",
+        "warn": "Delayed",
+        "offline": "Offline",
+        "standby": "Standby",
+    }
+    statuses = []
+    for _, row in hb_df.iterrows():
+        name_key = row["name"]
+        label = COLLECTOR_LABELS.get(name_key, name_key)
+        stale_seconds = COLLECTOR_STALE_SECONDS.get(name_key, 300)
+        colors = COLLECTOR_COLORS.get(name_key, ("#9aa4b5", "#c4cad6"))
+
+        ok_age = seconds_since_epoch(row["last_ok_epoch"], now_ts)
+        if ok_age is None:
+            status = "offline"
+            ok_text = "Last ok: --"
+        else:
+            if ok_age <= stale_seconds:
+                status = "ok"
+            elif ok_age <= stale_seconds * 3:
+                status = "warn"
+            else:
+                status = "offline"
+            ok_text = f"Last ok: {format_latency(ok_age)}"
+
+        ok_msg = row["last_ok_message"]
+        if ok_msg and not pd.isna(ok_msg):
+            ok_text = f"{ok_text} - {short_text(ok_msg, 48)}"
+
+        err_age = seconds_since_epoch(row["last_error_epoch"], now_ts)
+        err_text = "Last error: --"
+        error_recent = False
+        if err_age is not None:
+            ok_after_error = (
+                row["last_ok_epoch"] is not None
+                and row["last_error_epoch"] is not None
+                and row["last_ok_epoch"] > row["last_error_epoch"]
+            )
+            error_recent = err_age <= COLLECTOR_ERROR_GRACE_SECONDS
+            err_text = f"Last error: {format_latency(err_age)}"
+            err_msg = normalize_error_message(row["last_error"])
+            if err_msg and (error_recent or not ok_after_error):
+                err_text = f"{err_text} - {err_msg}"
+            elif ok_after_error:
+                err_text = f"{err_text} (resolved)"
+
+        ok_age_text = format_latency(ok_age) if ok_age is not None else "--"
+        snapshot_text = f"{label}: {status_label_map.get(status, 'Live')} ({ok_age_text})"
+        statuses.append(
+            {
+                "name": label,
+                "status": status,
+                "latency_text": ok_text,
+                "error_text": err_text,
+                "error_recent": error_recent,
+                "colors": colors,
+                "snapshot_text": snapshot_text,
+            }
+        )
+
+    return statuses
+
 def latency_label(latency_minutes):
     if latency_minutes is None:
         return "no signal"
@@ -1519,7 +1672,7 @@ def recent_activity(table, epoch_col, cutoff_epoch, device_col=None, device_id=N
     return {"count": count, "last_epoch": last_epoch}
 
 
-def render_ingest_banner(sources, total_recent, avg_latency_text=None):
+def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector_statuses=None):
     if not sources:
         return
 
@@ -1549,6 +1702,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
         "offline": "Offline",
         "standby": "Standby",
     }
+    collector_statuses = collector_statuses or []
     statuses = [
         {
             "name": s["name"],
@@ -1569,8 +1723,8 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
     summary_html = "".join(
         f"""<div class="ingest-chip {s['status']}">
   <span class="dot" style="background:{s['colors'][0]};"></span>
-  <span>{s['name']}</span>
-  <span class="ingest-pill {s['status']}">{status_labels[s['status']]}</span>
+  <span>{html_escape(s['name'])}</span>
+  <span class="ingest-pill {s['status']}">{html_escape(status_labels[s['status']])}</span>
 </div>"""
         for s in statuses
     )
@@ -1580,18 +1734,75 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
         f"""<div class="ingest-detail-row">
   <div class="meta">
     <span class="dot" style="background:{s['colors'][0]};"></span>
-    <span>{s['name']}</span>
-    <span class="ingest-pill {s['status']}">{status_labels[s['status']]}</span>
+    <span>{html_escape(s['name'])}</span>
+    <span class="ingest-pill {s['status']}">{html_escape(status_labels[s['status']])}</span>
   </div>
-  <div class="detail">{s['latency_text']} - {s['load_text']}</div>
-  <div class="last">{s['last_seen']}</div>
+  <div class="detail">{html_escape(s['latency_text'])} - {html_escape(s['load_text'])}</div>
+  <div class="last">{html_escape(s['last_seen'])}</div>
 </div>"""
         for s in statuses
     )
+    collector_section_html = ""
+    collector_summary_html = ""
+    collector_detail_html = ""
+    if collector_statuses:
+        collector_summary_html = "".join(
+            f"""<div class="ingest-chip {s['status']}">
+  <span class="dot" style="background:{s['colors'][0]};"></span>
+  <span>{html_escape(s['name'])}</span>
+  <span class="ingest-pill {s['status']}">{html_escape(status_labels.get(s['status'], 'Live'))}</span>
+</div>"""
+            for s in collector_statuses
+        )
+        snapshot_text = " | ".join(
+            s["snapshot_text"] for s in collector_statuses if s.get("snapshot_text")
+        )
+        snapshot_line = (
+            f"<div class=\"ingest-snapshot\">Health snapshot: {html_escape(snapshot_text)}</div>"
+            if snapshot_text
+            else ""
+        )
+        collector_section_html = "\n".join(
+            [
+                '<div class="ingest-divider"></div>',
+                '<div class="ingest-eyebrow">Collector health</div>',
+                snapshot_line,
+                '<div class="ingest-status-row">',
+                collector_summary_html,
+                "</div>",
+            ]
+        )
+        collector_detail_html = "".join(
+            f"""<div class="{collector_row_class(s['status'], s.get('error_recent'))}">
+  <div class="meta">
+    <span class="dot" style="background:{s['colors'][0]};"></span>
+    <span>{html_escape(s['name'])}</span>
+    <span class="ingest-pill {s['status']}">{html_escape(status_labels.get(s['status'], 'Live'))}</span>
+  </div>
+  <div class="detail">{html_escape(s['latency_text'])}</div>
+  <div class="last">{html_escape(s['error_text'])}</div>
+</div>"""
+            for s in collector_statuses
+        )
 
 
     st.sidebar.subheader("Connection settings")
     with st.sidebar.container():
+        def ping_device(host):
+            if not host:
+                return False, "Ping target not configured"
+            try:
+                result = subprocess.run(
+                    ["ping", "-n", "1", "-w", "1000", host],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                ok = result.returncode == 0
+                return ok, "Reachable" if ok else "No response"
+            except Exception:
+                return False, "Ping failed"
+
         header_cols = st.columns([1.4, 0.8])
         with header_cols[0]:
             hub_uptime_text = fmt_duration((time.time() - hub_activity["last_epoch"]) if hub_activity.get("last_epoch") else None)
@@ -1607,6 +1818,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
       <div class="ingest-status-row">
         {summary_html}
       </div>
+      {collector_section_html}
     </div>
   </div>
 </div>
@@ -1615,31 +1827,12 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
                 )
             with header_cols[1]:
                 st.markdown(
-                    f"<div class='ingest-badge'>{badge_text} <span title='Avg data age reflects how long ago each source last reported.'>(i)</span></div>",
+                    f"<div class='ingest-badge'>{html_escape(badge_text)} <span title='Avg data age reflects how long ago each source last reported.'>(i)</span></div>",
                     unsafe_allow_html=True,
                 )
-
-            def ping_device(host):
-                if not host:
-                    return False, "Ping target not configured"
-                try:
-                    result = subprocess.run(
-                        ["ping", "-n", "1", "-w", "1000", host],
-                        capture_output=True,
-                        text=True,
-                        timeout=3,
-                    )
-                    ok = result.returncode == 0
-                    return ok, "Reachable" if ok else "No response"
-                except Exception:
-                    return False, "Ping failed"
-
-            # Consolidated ping row (buttons aligned with connection summary)
-            ping_cols = st.columns(len(statuses))
-            for col, src in zip(ping_cols, statuses):
-                target = PING_TARGETS.get(src["name"]) or (PING_TARGETS.get("Tempest Hub") if src["name"] == "Tempest Station" else None)
-                disabled = not target
-                with col:
+                for src in statuses:
+                    target = PING_TARGETS.get(src["name"]) or (PING_TARGETS.get("Tempest Hub") if src["name"] == "Tempest Station" else None)
+                    disabled = not target
                     if st.button(f"Ping {src['name']}", key=f"ping_{src['name']}", disabled=disabled):
                         ok, msg = ping_device(target)
                         st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
@@ -1657,10 +1850,17 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None):
             # Detail blocks (no extra ping buttons inside)
             for src in statuses:
                 expander_title = f"{src['name']} — {status_labels[src['status']]}"
-                with st.expander(expander_title, expanded=True):
+                with st.expander(expander_title, expanded=False):
                     st.markdown(f"**Status:** {status_labels[src['status']]}")
                     st.markdown(f"**Latency/Load:** {src['latency_text']} - {src['load_text']}")
                     st.markdown(f"**Last seen:** {src['last_seen']}")
+
+            if collector_statuses:
+                with st.expander("Collector details", expanded=False):
+                    st.markdown(
+                        f"<div class='ingest-details'>{collector_detail_html}</div>",
+                        unsafe_allow_html=True,
+                    )
 
 def daily_extremes(df, time_col, value_cols):
     if df is None or df.empty:
@@ -2547,7 +2747,13 @@ avg_latency_minutes = sum(latency_values) / len(latency_values) if latency_value
 avg_latency_text = latency_label(avg_latency_minutes) if avg_latency_minutes is not None else None
 total_recent = sum(s["recent_count"] for s in ingest_sources if s["recent_count"] is not None)
 
-render_ingest_banner(ingest_sources, total_recent, avg_latency_text=avg_latency_text)
+collector_statuses = build_collector_statuses(now_ts)
+render_ingest_banner(
+    ingest_sources,
+    total_recent,
+    avg_latency_text=avg_latency_text,
+    collector_statuses=collector_statuses,
+)
 
 # ------------------------
 # Tabs layout: Overview, Trends, Comparisons, Raw

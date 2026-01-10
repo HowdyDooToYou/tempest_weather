@@ -22,6 +22,8 @@ RETRY_SEC = int(os.getenv("AIRLINK_RETRY_SEC", "5"))
 
 AIRLINK_OBS_TABLE = "airlink_current_obs"
 AIRLINK_RAW_TABLE = "airlink_raw_all"
+HEARTBEAT_TABLE = "collector_heartbeat"
+HEARTBEAT_NAME = "airlink_collector"
 
 
 def log(msg: str):
@@ -53,9 +55,10 @@ def to_float(x):
 
 def db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA busy_timeout=5000;")
     return conn
 
 
@@ -184,11 +187,47 @@ CREATE TABLE IF NOT EXISTS {AIRLINK_OBS_TABLE} (
 
 CREATE INDEX IF NOT EXISTS idx_airlink_current_obs_ts
   ON {AIRLINK_OBS_TABLE}(ts);
+
+CREATE TABLE IF NOT EXISTS {HEARTBEAT_TABLE} (
+  name TEXT PRIMARY KEY,
+  last_ok_epoch INTEGER,
+  last_error_epoch INTEGER,
+  last_ok_message TEXT,
+  last_error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_collector_heartbeat_last_ok
+  ON {HEARTBEAT_TABLE}(last_ok_epoch);
 """
         )
         backfill_airlink_raw_all(conn)
         conn.commit()
 
+
+def heartbeat_ok(conn: sqlite3.Connection, epoch: int, message: str) -> None:
+    conn.execute(
+        f"""
+        INSERT INTO {HEARTBEAT_TABLE} (name, last_ok_epoch, last_ok_message)
+        VALUES (?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+          last_ok_epoch=excluded.last_ok_epoch,
+          last_ok_message=excluded.last_ok_message
+        """,
+        (HEARTBEAT_NAME, epoch, message),
+    )
+
+
+def heartbeat_error(conn: sqlite3.Connection, epoch: int, message: str) -> None:
+    conn.execute(
+        f"""
+        INSERT INTO {HEARTBEAT_TABLE} (name, last_error_epoch, last_error)
+        VALUES (?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+          last_error_epoch=excluded.last_error_epoch,
+          last_error=excluded.last_error
+        """,
+        (HEARTBEAT_NAME, epoch, message),
+    )
 
 def run():
     if not HOST:
@@ -201,6 +240,9 @@ def run():
     log(f"Polling AirLink URL={URL} every {POLL_SEC}s")
 
     session = requests.Session()
+    with db() as conn:
+        heartbeat_ok(conn, int(time.time()), "startup ok")
+        conn.commit()
 
     while True:
         try:
@@ -290,6 +332,7 @@ def run():
                         to_float(c0.get("pct_pm_data_last_24_hours")),
                     ),
                 )
+                heartbeat_ok(conn, received_at, f"poll ok did={did}")
                 conn.commit()
 
             log(
@@ -302,6 +345,12 @@ def run():
         except Exception as e:
             log(f"ERROR: {repr(e)}")
             traceback.print_exc()
+            try:
+                with db() as conn:
+                    heartbeat_error(conn, int(time.time()), repr(e))
+                    conn.commit()
+            except Exception:
+                pass
             time.sleep(RETRY_SEC)
 
 
