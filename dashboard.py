@@ -30,10 +30,13 @@ COLLECTOR_STALE_SECONDS = {
     "tempest_collector": 300,
 }
 COLLECTOR_ERROR_GRACE_SECONDS = 600
+WATCHDOG_STALE_SECONDS = int(os.getenv("WATCHDOG_STALE_SECONDS", "600"))
+WATCHDOG_LOG_PATH = Path("logs/collector_watchdog.log")
 COLLECTOR_COLORS = {
     "airlink_collector": ("#4bd0c2", "#7be7d9"),
     "tempest_collector": ("#59c5ff", "#8cc5ff"),
 }
+WATCHDOG_COLORS = ("#f4b860", "#ffd59a")
 
 CHART_SCHEME = "tableau10"
 LOCAL_TZ = "America/New_York"
@@ -749,6 +752,10 @@ st.markdown(
     .stApp[data-theme="light"] .ingest-chip { background: #f4f6fb; border-color: #dde3ee; color: #1b2432; }
     body.theme-light .ingest-chip,
     .stApp.theme-light .ingest-chip { background: #f4f6fb; border-color: #dde3ee; color: #1b2432; }
+    body[data-theme="light"] .ingest-meta,
+    .stApp[data-theme="light"] .ingest-meta { color: #5c6b7c; }
+    body.theme-light .ingest-meta,
+    .stApp.theme-light .ingest-meta { color: #5c6b7c; }
     body[data-theme="light"] .ingest-pill,
     .stApp[data-theme="light"] .ingest-pill { color: #1b2432; }
     body.theme-light .ingest-pill,
@@ -794,17 +801,31 @@ st.markdown(
         color: #e7ecf3;
         font-weight: 600;
         font-size: 0.85rem;
+        min-height: 34px;
     }
-    .ingest-chip .dot {
+    .ingest-dot {
         width: 10px;
         height: 10px;
         border-radius: 999px;
         box-shadow: 0 0 10px currentColor;
     }
-    .ingest-chip.ok { color: #7be7d9; }
-    .ingest-chip.warn { color: #ffd166; }
-    .ingest-chip.offline { color: #ff7b7b; }
-    .ingest-chip.standby { color: #9aa4b5; }
+    .ingest-chip.ok { border-color: rgba(123,231,217,0.35); }
+    .ingest-chip.warn { border-color: rgba(255,209,102,0.35); }
+    .ingest-chip.offline { border-color: rgba(255,123,123,0.35); }
+    .ingest-chip.standby { border-color: rgba(154,164,181,0.35); }
+    .ingest-body {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .ingest-title {
+        font-weight: 700;
+    }
+    .ingest-meta {
+        font-size: 0.72rem;
+        color: #9aa4b5;
+        font-weight: 500;
+    }
     .ingest-pill {
         padding: 2px 6px;
         border-radius: 999px;
@@ -813,6 +834,7 @@ st.markdown(
         text-transform: uppercase;
         border: 1px solid rgba(255,255,255,0.12);
         color: #cfd6e5;
+        margin-left: auto;
     }
     .ingest-pill.ok { color: #7be7d9; border-color: rgba(123,231,217,0.4); }
     .ingest-pill.warn { color: #ffd166; border-color: rgba(255,209,102,0.4); }
@@ -883,14 +905,9 @@ st.markdown(
         display: flex;
         align-items: center;
         gap: 10px;
+        flex-wrap: wrap;
         font-weight: 700;
         color: #e7ecf3;
-    }
-    .ingest-detail-row .meta .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 999px;
-        box-shadow: 0 0 10px currentColor;
     }
     .ingest-detail-row .detail {
         color: #9aa4b5;
@@ -1355,6 +1372,48 @@ def normalize_error_message(text):
     return short_text(msg, 80)
 
 
+def read_watchdog_status():
+    if not WATCHDOG_LOG_PATH.exists():
+        return None
+    try:
+        with WATCHDOG_LOG_PATH.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - 4096))
+            chunk = handle.read().decode("utf-8", errors="ignore")
+        lines = [line for line in chunk.splitlines() if "|" in line]
+        if not lines:
+            return None
+        last_line = lines[-1]
+        ts_part, rest = last_line.split("|", 1)
+        ts = datetime.strptime(ts_part.strip(), "%Y-%m-%d %H:%M:%S")
+        age_seconds = max(0, int((datetime.now() - ts).total_seconds()))
+        age_text = format_latency(age_seconds)
+        detail = rest.strip()
+        status = "ok"
+        pill_text = "OK"
+        if "WARN:" in detail:
+            status = "warn"
+            pill_text = "WARN"
+        if age_seconds > WATCHDOG_STALE_SECONDS:
+            status = "warn"
+            pill_text = "STALE"
+        return {
+            "name": "Watchdog",
+            "status": status,
+            "latency_text": f"Last run: {age_text}",
+            "error_text": short_text(detail, 120),
+            "colors": WATCHDOG_COLORS,
+            "snapshot_text": f"Watchdog: {pill_text} ({age_text})",
+            "error_recent": status == "warn",
+            "pill_text": pill_text,
+            "meta_text": f"Last run {age_text}",
+            "meta_title": f"Stale after {WATCHDOG_STALE_SECONDS // 60}m",
+        }
+    except Exception:
+        return None
+
+
 def clean_chart(data, height=240, title=None):
     """Shared line chart without hover overlays for better performance."""
     chart = (
@@ -1702,7 +1761,22 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
         "offline": "Offline",
         "standby": "Standby",
     }
+    def indicator_chip(name, status, colors, meta=None, pill_text=None, meta_title=None):
+        pill = pill_text or status_labels.get(status, "Live")
+        meta_attr = f" title=\"{html_escape(meta_title)}\"" if meta and meta_title else ""
+        meta_html = f"<div class=\"ingest-meta\"{meta_attr}>{html_escape(meta)}</div>" if meta else ""
+        return f"""<div class="ingest-chip {status}">
+  <span class="ingest-dot" style="background:{colors[0]};"></span>
+  <div class="ingest-body">
+    <div class="ingest-title">{html_escape(name)}</div>
+    {meta_html}
+  </div>
+  <span class="ingest-pill {status}">{html_escape(pill)}</span>
+</div>"""
     collector_statuses = collector_statuses or []
+    watchdog_status = read_watchdog_status()
+    if watchdog_status:
+        collector_statuses = collector_statuses + [watchdog_status]
     statuses = [
         {
             "name": s["name"],
@@ -1721,11 +1795,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
         badge_text = f"{badge_text} - avg data age {avg_latency_text}"
 
     summary_html = "".join(
-        f"""<div class="ingest-chip {s['status']}">
-  <span class="dot" style="background:{s['colors'][0]};"></span>
-  <span>{html_escape(s['name'])}</span>
-  <span class="ingest-pill {s['status']}">{html_escape(status_labels[s['status']])}</span>
-</div>"""
+        indicator_chip(s["name"], s["status"], s["colors"])
         for s in statuses
     )
 
@@ -1733,7 +1803,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
     details_html = "".join(
         f"""<div class="ingest-detail-row">
   <div class="meta">
-    <span class="dot" style="background:{s['colors'][0]};"></span>
+    <span class="ingest-dot" style="background:{s['colors'][0]};"></span>
     <span>{html_escape(s['name'])}</span>
     <span class="ingest-pill {s['status']}">{html_escape(status_labels[s['status']])}</span>
   </div>
@@ -1747,11 +1817,14 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
     collector_detail_html = ""
     if collector_statuses:
         collector_summary_html = "".join(
-            f"""<div class="ingest-chip {s['status']}">
-  <span class="dot" style="background:{s['colors'][0]};"></span>
-  <span>{html_escape(s['name'])}</span>
-  <span class="ingest-pill {s['status']}">{html_escape(status_labels.get(s['status'], 'Live'))}</span>
-</div>"""
+            indicator_chip(
+                s["name"],
+                s["status"],
+                s["colors"],
+                meta=s.get("meta_text"),
+                meta_title=s.get("meta_title"),
+                pill_text=s.get("pill_text"),
+            )
             for s in collector_statuses
         )
         snapshot_text = " | ".join(
@@ -1775,9 +1848,9 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
         collector_detail_html = "".join(
             f"""<div class="{collector_row_class(s['status'], s.get('error_recent'))}">
   <div class="meta">
-    <span class="dot" style="background:{s['colors'][0]};"></span>
+    <span class="ingest-dot" style="background:{s['colors'][0]};"></span>
     <span>{html_escape(s['name'])}</span>
-    <span class="ingest-pill {s['status']}">{html_escape(status_labels.get(s['status'], 'Live'))}</span>
+    <span class="ingest-pill {s['status']}">{html_escape(s.get('pill_text') or status_labels.get(s['status'], 'Live'))}</span>
   </div>
   <div class="detail">{html_escape(s['latency_text'])}</div>
   <div class="last">{html_escape(s['error_text'])}</div>
