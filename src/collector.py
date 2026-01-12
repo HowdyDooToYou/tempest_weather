@@ -27,7 +27,9 @@ COMMIT_EVERY_SECONDS = 5
 HEARTBEAT_INTERVAL_SEC = 30
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = PROJECT_ROOT / "data" / "tempest.db"
+DB_PATH = Path(os.getenv("TEMPEST_DB_PATH", str(PROJECT_ROOT / "data" / "tempest.db")))
+if not DB_PATH.is_absolute():
+    DB_PATH = PROJECT_ROOT / DB_PATH
 LOG_PATH = PROJECT_ROOT / "logs" / "collector.log"
 HEARTBEAT_TABLE = "collector_heartbeat"
 HEARTBEAT_NAME = "tempest_collector"

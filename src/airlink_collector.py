@@ -10,7 +10,9 @@ from datetime import datetime
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = ROOT / "data" / "tempest.db"
+DB_PATH = Path(os.getenv("TEMPEST_DB_PATH", str(ROOT / "data" / "tempest.db")))
+if not DB_PATH.is_absolute():
+    DB_PATH = ROOT / DB_PATH
 LOG_PATH = ROOT / "logs" / "airlink_collector.log"
 
 HOST = os.environ.get("DAVIS_AIRLINK_HOST", "").rstrip("/")

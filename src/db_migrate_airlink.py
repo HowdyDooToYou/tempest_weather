@@ -3,7 +3,9 @@ import sqlite3
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = ROOT / "data" / "tempest.db"
+DB_PATH = Path(os.getenv("TEMPEST_DB_PATH", str(ROOT / "data" / "tempest.db")))
+if not DB_PATH.is_absolute():
+    DB_PATH = ROOT / DB_PATH
 
 DDL = """
 CREATE TABLE IF NOT EXISTS airlink_raw (

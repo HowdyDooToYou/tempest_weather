@@ -1,13 +1,13 @@
-# Tempest Weather & Air Quality Dashboard
+# Tempest Weather and Air Quality Dashboard
 
-Streamlit dashboard for monitoring Tempest weather and AirLink air-quality data with flexible chart ordering and metric selection.
+Streamlit dashboard for Tempest weather and AirLink air-quality data with live gauges, palettes, and background alerts.
 
 ## Features
-- Overview with selectable metrics (accordion) — temperature preselected by default.
-- Trends tab with user-driven chart order (drag/deselect via multiselect).
-- Raw data views for Tempest, AirLink, and hub events.
-- Sidebar controls for window size, date range, theme, and location overrides.
-- [paused] Legacy sprite/"Sprite Lab" assets removed; focused on weather/air data only.
+- Overview, Trends, Comparisons, and Raw tabs for weather and AQI.
+- Live gauges with highlights and local time.
+- Theme palettes plus a Custom token picker.
+- Connection and ingest health panel with collector status.
+- Freeze alerts via email/SMS (UI or background worker).
 
 ## Supported devices
 - Tempest Station (weather observations)
@@ -16,12 +16,11 @@ Streamlit dashboard for monitoring Tempest weather and AirLink air-quality data 
 
 ## Requirements
 - Python 3.10+ (tested on 3.12)
-- Dependencies: `streamlit`, `pandas`, `altair`, `requests` (install with `pip install streamlit pandas altair requests`)
+- Dependencies: `streamlit`, `pandas`, `altair`, `requests`
 - Tempest/AirLink data available in `data/tempest.db` (and related tables)
-- Continuous internet access for collectors, the Streamlit client, and any AI/forecast calls (HTTPS out); LAN access to the Tempest Hub/AirLink endpoints.
 
 ## Quick start
-1) Create a virtual environment (recommended):
+1) Create a virtual environment:
    ```bash
    python -m venv .venv
    .\.venv\Scripts\activate
@@ -36,15 +35,53 @@ Streamlit dashboard for monitoring Tempest weather and AirLink air-quality data 
    ```
 
 ## Configuration
-- API token (optional, for auto-location): set `TEMPEST_API_TOKEN` in your environment.
-- Device IDs and hub targets live near the top of `dashboard.py` (`TEMPEST_STATION_ID`, `TEMPEST_HUB_ID`, `PING_TARGETS`).
-- Data path: `data/tempest.db` (adjust in `DB_PATH` if needed).
+- `TEMPEST_API_TOKEN`: optional, for auto-location.
+- `TEMPEST_DB_PATH`: optional, defaults to `data/tempest.db`.
+- `LOCAL_TZ`: optional, defaults to `America/New_York`.
+
+### Alerts
+- SMTP credentials (environment only):
+  - `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM`
+  - Optional: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_TLS`, `SMTP_USE_SSL`
+- Recipients:
+  - Email: `ALERT_EMAIL_TO` (env) or save via Controls -> Alerts.
+  - SMS: `VERIZON_SMS_TO` (env) or save via Controls -> Alerts.
+- Thresholds:
+  - `FREEZE_WARNING_F` (default 32)
+  - `DEEP_FREEZE_F` (default 18)
+  - `FREEZE_RESET_F` (default 34)
+- Worker settings:
+  - `ALERTS_WORKER_ENABLED=1` to stop UI sends when the worker is active.
+  - `ALERT_WORKER_INTERVAL_SECONDS` (default 60)
+  - Use the worker for continuous alerts when no UI session is open.
+
+## Alerts and privacy
+- SMTP credentials are never stored in the database or code.
+- Recipient overrides saved in the UI are stored in `data/tempest.db` (gitignored).
+- Saved recipients override env values; clear them in Controls -> Alerts to revert.
+
+## Run as a Windows service (NSSM)
+1) Install NSSM (for example: `choco install nssm`).
+2) Configure environment variables for services (Windows System Environment or NSSM Environment tab).
+3) Run:
+   ```powershell
+   .\scripts\install_services.ps1
+   ```
+4) Remove services:
+   ```powershell
+   .\scripts\uninstall_services.ps1
+   ```
+
+Services installed by the script:
+- `TempestWeatherUI` (Streamlit dashboard on port 8501)
+- `TempestWeatherAlerts` (background alerts worker)
+The install script sets `ALERTS_WORKER_ENABLED=1` for the UI service to avoid duplicate alerts.
 
 ## Usage notes
-- In **Overview**, toggle metrics via the accordion; charts for selected metrics render below.
-- In **Trends**, reorder/hide charts with the “Choose chart order” multiselect; order is remembered per session.
+- In Overview, toggle metrics via the accordion; charts for selected metrics render below.
+- In Trends, reorder or hide charts with the chart order multiselect.
 - Raw tabs provide table views for quick inspection.
 
 ## Development
-- Run `python -m py_compile dashboard.py` for a quick syntax check.
+- Run `python -m py_compile dashboard.py src/alerting.py src/alerts_worker.py` for a quick syntax check.
 - No external build needed; app is Streamlit-only.

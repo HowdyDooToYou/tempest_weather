@@ -3,6 +3,7 @@ import json
 import html
 import subprocess
 import time
+import re
 from datetime import datetime
 import requests
 from pathlib import Path
@@ -13,7 +14,20 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-DB_PATH = "data/tempest.db"
+from src.alerting import (
+    build_freeze_alert_message,
+    delete_alert_config,
+    determine_freeze_alerts,
+    load_alert_config,
+    load_alert_state,
+    resolve_alert_recipients,
+    save_alert_config,
+    save_alert_state,
+    send_email,
+    send_verizon_sms,
+)
+
+DB_PATH = os.getenv("TEMPEST_DB_PATH", "data/tempest.db")
 TEMPEST_STATION_ID = 475329
 TEMPEST_HUB_ID = 475327
 
@@ -39,8 +53,40 @@ COLLECTOR_COLORS = {
 WATCHDOG_COLORS = ("#f4b860", "#ffd59a")
 
 CHART_SCHEME = "tableau10"
-LOCAL_TZ = "America/New_York"
+CHART_LABEL_COLOR = "#cfd6e5"
+CHART_TITLE_COLOR = "#cfd6e5"
+CHART_GRID_COLOR = "#1f252f"
+CHART_TEXT_COLOR = "#9fb2cc"
+THEME_MODE = "dark"
+THEME_COLORS = {
+    "accent": "#7be7d9",
+    "accent2": "#61a5ff",
+    "accent3": "#f2a85b",
+    "status_ok": "#7be7d9",
+    "status_warn": "#f2a85b",
+    "status_bad": "#ff7b7b",
+    "status_idle": "#9aa4b5",
+    "text_primary": "#f4f7ff",
+    "text_secondary": "#9aa4b5",
+    "text_muted": "#8aa4c8",
+    "border": "#232834",
+    "surface_3": "#0d1016",
+}
+GAUGE_COLORS = {
+    "temp": "#61a5ff",
+    "air_temp": "#4bd0c2",
+    "feels": "#7be7d9",
+    "hum": "#4bd0c2",
+    "pressure": "#9c7bff",
+    "wind": "#61a5ff",
+    "gust": "#f2a85b",
+}
+LOCAL_TZ = os.getenv("LOCAL_TZ", "America/New_York")
 AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "60"))
+FREEZE_WARNING_F = float(os.getenv("FREEZE_WARNING_F", "32"))
+DEEP_FREEZE_F = float(os.getenv("DEEP_FREEZE_F", "18"))
+FREEZE_RESET_F = float(os.getenv("FREEZE_RESET_F", "34"))
+ALERTS_WORKER_ENABLED = os.getenv("ALERTS_WORKER_ENABLED", "false").lower() in ("1", "true", "yes", "on")
 
 def resolve_table(candidates):
     try:
@@ -171,24 +217,58 @@ st.markdown(
     <style>
     html { font-size: 110%; }
     :root {
+        --color-scheme: dark;
+        --bg: #0f1115;
+        --surface: #161920;
+        --surface-2: #1a1d23;
+        --surface-3: #0d1016;
+        --surface-4: #101722;
+        --border: #232834;
+        --border-muted: rgba(35,40,52,0.55);
+        --text-primary: #f4f7ff;
+        --text-secondary: #9aa4b5;
+        --text-muted: #8aa4c8;
+        --chart-text: var(--text-secondary);
+        --chart-title: var(--text-primary);
+        --chart-grid: var(--border-muted);
         --accent: #7be7d9;
         --accent-2: #61a5ff;
         --accent-3: #f2a85b;
         --accent-soft: rgba(123,231,217,0.18);
         --accent-border: rgba(123,231,217,0.5);
-        --text-primary: #f4f7ff;
-        --text-secondary: #9aa4b5;
+        --accent-2-soft: rgba(97,165,255,0.18);
+        --accent-2-border: rgba(97,165,255,0.35);
+        --accent-2-glow: rgba(97,165,255,0.4);
+        --accent-3-soft: rgba(242,168,91,0.12);
+        --accent-3-border: rgba(242,168,91,0.35);
+        --accent-3-glow: rgba(242,168,91,0.6);
+        --status-ok: #7be7d9;
+        --status-warn: #f2a85b;
+        --status-bad: #ff7b7b;
+        --status-idle: #9aa4b5;
+        --status-ok-border: rgba(123,231,217,0.4);
+        --status-warn-border: rgba(242,168,91,0.45);
+        --status-bad-border: rgba(255,123,123,0.45);
+        --status-bad-border-strong: rgba(255,123,123,0.55);
+        --status-idle-border: rgba(154,164,181,0.35);
+        --status-warn-soft: rgba(242,168,91,0.08);
+        --status-bad-soft: rgba(255,123,123,0.08);
+        --status-bad-strong: rgba(255,123,123,0.14);
     }
-    body { background: #0f1115; }
-    .main { background: #0f1115; }
+    body {
+        background: var(--bg);
+        color: var(--text-primary);
+        color-scheme: var(--color-scheme);
+    }
+    .main { background: var(--bg); }
     .card {
         padding: 14px 16px;
         border-radius: 12px;
-        background: #1a1d23;
-        border: 1px solid #232834;
-        color: #e7ecf3;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
     }
-    .card .title { font-size: 0.9rem; color: #9aa4b5; margin-bottom: 6px; }
+    .card .title { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px; }
     .card .value { font-size: 1.8rem; font-weight: 700; }
     .pill {
         display: inline-flex;
@@ -197,15 +277,15 @@ st.markdown(
         border-radius: 999px;
         font-size: 0.85rem;
         font-weight: 600;
-        border: 1px solid rgba(255,255,255,0.08);
-        color: #fff;
+        border: 1px solid var(--border-muted);
+        color: var(--text-primary);
     }
     .chart-header {
         display: flex;
         align-items: center;
         gap: 8px;
         font-weight: 600;
-        color: #e7ecf3;
+        color: var(--text-primary);
         margin: 6px 0 4px;
     }
     .info-icon {
@@ -216,7 +296,7 @@ st.markdown(
         height: 18px;
         border-radius: 50%;
         border: 1px solid var(--accent-border);
-        color: #9fb2cc;
+        color: var(--text-muted);
         font-size: 0.72rem;
         cursor: help;
     }
@@ -229,25 +309,25 @@ st.markdown(
     .metric-card {
         padding: 12px 14px;
         border-radius: 14px;
-        border: 1px solid rgba(110,140,190,0.18);
-        background: linear-gradient(160deg, rgba(22,30,44,0.92), rgba(12,16,24,0.95));
+        border: 1px solid var(--border-muted);
+        background: linear-gradient(160deg, var(--surface-2), var(--surface-3));
         box-shadow: 0 18px 36px rgba(0,0,0,0.35);
     }
     .metric-card .label {
         font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.12em;
-        color: #8aa4c8;
+        color: var(--text-muted);
         margin-bottom: 6px;
     }
     .metric-card .value {
         font-size: 1.7rem;
         font-weight: 700;
-        color: #f4f7ff;
+        color: var(--text-primary);
     }
     .metric-card .sub {
         font-size: 0.78rem;
-        color: #9fb2cc;
+        color: var(--text-secondary);
         margin-top: 4px;
     }
     .metric-expanders {
@@ -255,34 +335,79 @@ st.markdown(
         margin-bottom: 14px;
     }
     .metric-expanders [data-testid="stExpander"] {
-        border: 1px solid rgba(110,140,190,0.18);
+        border: 1px solid var(--border-muted);
         border-radius: 14px;
-        background: linear-gradient(160deg, rgba(22,30,44,0.92), rgba(12,16,24,0.95));
+        background: linear-gradient(160deg, var(--surface-2), var(--surface-3));
         margin-bottom: 10px;
     }
     .metric-expanders [data-testid="stExpander"] summary {
         padding: 12px 14px;
         font-weight: 600;
-        color: #f4f7ff;
+        color: var(--text-primary);
     }
     .metric-expanders [data-testid="stExpander"] summary:hover {
-        background: rgba(123,231,217,0.08);
+        background: var(--accent-soft);
+    }
+    div[data-testid="stMarkdown"]:has(#hour-presets) + div [data-testid="stRadio"] > div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    div[data-testid="stMarkdown"]:has(#hour-presets) + div [data-testid="stRadio"] label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--accent-2-border);
+        background: linear-gradient(135deg, var(--accent-2-soft), var(--surface-3));
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 8px 18px var(--accent-2-soft);
+    }
+    div[data-testid="stMarkdown"]:has(#hour-presets) + div [data-testid="stRadio"] label:hover {
+        border-color: var(--accent-border);
+        color: var(--text-primary);
+    }
+    div[data-testid="stMarkdown"]:has(#hour-presets) + div [data-testid="stRadio"] label:has(input:checked) {
+        border-color: var(--accent);
+        background: linear-gradient(135deg, var(--accent-soft), var(--surface-3));
+        box-shadow: 0 10px 22px var(--accent-soft);
+        color: var(--text-primary);
+    }
+    div[data-testid="stMarkdown"]:has(#hour-presets) + div [data-testid="stRadio"] label::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--accent-2);
+        box-shadow: 0 0 10px var(--accent-2-glow);
+    }
+    div[data-testid="stMarkdown"]:has(#hour-presets) + div [data-testid="stRadio"] label:has(input:checked)::before {
+        background: var(--accent);
+        box-shadow: 0 0 12px var(--accent-border);
+    }
+    div[data-testid="stMarkdown"]:has(#hour-presets) + div [data-testid="stRadio"] label div:first-child {
+        display: none;
     }
     .section-gap { margin-top: 18px; }
     .gauge-block {
         margin-top: 10px;
         padding: 12px 12px 10px 12px;
         border-radius: 12px;
-        background: #161920;
-        border: 1px solid #202636;
+        background: var(--surface);
+        border: 1px solid var(--border);
     }
     .wind-flow {
         position: relative;
         width: 92px;
         height: 92px;
         border-radius: 50%;
-        border: 1px solid #233045;
-        background: radial-gradient(circle at 50% 50%, rgba(97,165,255,0.12), transparent 60%);
+        border: 1px solid var(--border);
+        background: radial-gradient(circle at 50% 50%, var(--accent-2-soft), transparent 60%);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -292,13 +417,13 @@ st.markdown(
         position: absolute;
         width: 8px;
         height: 38px;
-        background: linear-gradient(180deg, #7be7d9, #61a5ff);
+        background: linear-gradient(180deg, var(--accent), var(--accent-2));
         border-radius: 999px;
         transform-origin: 50% 100%;
         transform: translate(-50%, -50%) rotate(var(--wind-angle, 0deg));
         left: 50%;
         top: 50%;
-        box-shadow: 0 0 12px rgba(97,165,255,0.6);
+        box-shadow: 0 0 12px var(--accent-2-glow);
     }
     .wind-flow .needle::after {
         content: "";
@@ -310,15 +435,15 @@ st.markdown(
         height: 0;
         border-left: 7px solid transparent;
         border-right: 7px solid transparent;
-        border-bottom: 10px solid #7be7d9;
+        border-bottom: 10px solid var(--accent);
     }
     .wind-flow .tail {
         position: absolute;
         width: 10px;
         height: 10px;
         border-radius: 999px;
-        background: rgba(123,231,217,0.9);
-        box-shadow: 0 0 14px rgba(123,231,217,0.8);
+        background: var(--accent);
+        box-shadow: 0 0 14px var(--accent-border);
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%) rotate(var(--wind-angle, 0deg)) translateY(-32px);
@@ -333,30 +458,36 @@ st.markdown(
         display: flex;
         justify-content: space-between;
         align-items: center;
-        color: #d8deed;
+        color: var(--text-primary);
         font-size: 0.9rem;
         font-weight: 600;
+    }
+    .gauge-category {
+        margin-left: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-secondary);
     }
     .gauge-track {
         margin-top: 8px;
         width: 100%;
         height: 12px;
         border-radius: 999px;
-        background: #0d1016;
-        border: 1px solid #1f2430;
+        background: var(--surface-3);
+        border: 1px solid var(--border);
         overflow: hidden;
     }
     .gauge-fill {
         height: 100%;
         border-radius: 999px;
-        background: linear-gradient(90deg, #59c5ff, #5f7bff);
+        background: linear-gradient(90deg, var(--accent-2), var(--accent-3));
         transition: width 0.8s ease, filter 0.3s ease;
     }
     .gauge-pulse .gauge-fill {
         animation: pulseBar 1.8s ease-in-out infinite;
     }
     .gauge-muted {
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-size: 0.8rem;
         margin-top: 4px;
     }
@@ -404,8 +535,8 @@ st.markdown(
         content: "";
         position: absolute;
         inset: -8px -12px;
-        background: radial-gradient(circle at 20% 20%, rgba(97,165,255,0.18), transparent 35%),
-                    radial-gradient(circle at 80% 40%, rgba(75,208,194,0.16), transparent 30%);
+        background: radial-gradient(circle at 20% 20%, var(--accent-2-soft), transparent 35%),
+                    radial-gradient(circle at 80% 40%, var(--accent-soft), transparent 30%);
         filter: blur(22px);
         z-index: -1;
     }
@@ -415,13 +546,13 @@ st.markdown(
         border-radius: 999px;
         overflow: hidden;
         margin: 4px 0 14px 0;
-        background: linear-gradient(90deg, rgba(97,165,255,0.28), rgba(75,208,194,0.28), rgba(97,165,255,0.28));
+        background: linear-gradient(90deg, var(--accent-2-soft), var(--accent-soft), var(--accent-2-soft));
     }
     .aurora::before {
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, rgba(255,255,255,0.12), transparent 40%, rgba(255,255,255,0.12));
+        background: linear-gradient(90deg, var(--border-muted), transparent 40%, var(--border-muted));
         animation: auroraSlide 8s linear infinite;
         mix-blend-mode: screen;
     }
@@ -434,22 +565,21 @@ st.markdown(
     .overview-title {
         font-size: 1.5rem;
     }
-    .dash-clock {
-        text-align: right;
-        padding: 6px 10px;
-        border-radius: 12px;
-        border: 1px solid rgba(123,231,217,0.25);
-        background: rgba(13,16,22,0.7);
-        color: #d8deed;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-    }
-    .dash-clock .time {
-        font-size: 1.1rem;
+    .gauge-clock .clock-time {
+        font-size: 1.05rem;
         font-weight: 700;
+        font-variant-numeric: tabular-nums;
     }
-    .dash-clock .date {
-        font-size: 0.78rem;
-        color: var(--text-secondary);
+    .gauge-clock .clock-date {
+        margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+    }
+    .gauge-clock .gauge-track {
+        height: 8px;
+        margin-top: 8px;
+    }
+    .gauge-clock .gauge-fill {
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
     }
     .overview-header {
         display: flex;
@@ -464,12 +594,12 @@ st.markdown(
         gap: 6px;
         padding: 4px 10px;
         border-radius: 999px;
-        border: 1px solid rgba(97,165,255,0.45);
-        background: linear-gradient(135deg, rgba(97,165,255,0.24), rgba(12,16,24,0.9));
-        color: #dbe7ff;
+        border: 1px solid var(--accent-2-border);
+        background: linear-gradient(135deg, var(--accent-2-soft), var(--surface-3));
+        color: var(--text-primary);
         font-weight: 600;
         font-size: 0.82rem;
-        box-shadow: 0 10px 22px rgba(97,165,255,0.22);
+        box-shadow: 0 10px 22px var(--accent-2-soft);
     }
     .wind-flag .arrow {
         display: inline-flex;
@@ -478,10 +608,10 @@ st.markdown(
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        border: 1px solid rgba(255,255,255,0.28);
-        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), rgba(97,165,255,0.2));
-        box-shadow: 0 0 12px rgba(97,165,255,0.6);
-        color: #f4f7ff;
+        border: 1px solid var(--border-muted);
+        background: radial-gradient(circle at 30% 30%, var(--accent-2-soft), var(--surface-3));
+        box-shadow: 0 0 12px var(--accent-2-glow);
+        color: var(--text-primary);
         font-size: 0.7rem;
         transform: rotate(0deg);
     }
@@ -492,12 +622,46 @@ st.markdown(
     .wind-flag .wind-speed {
         padding: 2px 6px;
         border-radius: 999px;
-        border: 1px solid rgba(255,255,255,0.16);
-        background: rgba(12,16,24,0.45);
-        color: #f6fbff;
+        border: 1px solid var(--border-muted);
+        background: var(--surface-3);
+        color: var(--text-primary);
         font-size: 0.7rem;
         font-weight: 700;
         letter-spacing: 0.4px;
+    }
+    .aqi-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--aqi-border, rgba(255,255,255,0.2));
+        background: linear-gradient(135deg, var(--aqi-tint, rgba(16,24,36,0.6)), var(--surface-3));
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 0.82rem;
+        box-shadow: 0 10px 22px rgba(0,0,0,0.18);
+    }
+    .aqi-badge .aqi-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--aqi-color, #2d2f36);
+        box-shadow: 0 0 10px var(--aqi-color, #2d2f36);
+    }
+    .aqi-badge .aqi-label {
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        color: var(--text-secondary);
+    }
+    .aqi-badge .aqi-value {
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .aqi-badge .aqi-status {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
     }
     .overview-actions {
         display: flex;
@@ -519,12 +683,44 @@ st.markdown(
         margin-top: 6px;
     }
     .header-badges .wind-flag,
-    .header-badges .sun-badge {
+    .header-badges .sun-badge,
+    .header-badges .aqi-badge {
         font-size: 0.75rem;
         padding: 4px 8px;
     }
     .header-badges .wind-flag .wind-speed {
         font-size: 0.66rem;
+    }
+    .header-badges .aqi-badge .aqi-status {
+        font-size: 0.66rem;
+    }
+    .alert-banner {
+        margin-top: 10px;
+        padding: 8px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(97,165,255,0.45);
+        background: linear-gradient(135deg, rgba(97,165,255,0.2), var(--surface-3));
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+    }
+    .alert-banner .alert-title {
+        font-weight: 700;
+        letter-spacing: 0.3px;
+    }
+    .alert-banner .alert-meta {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+    .alert-banner.freeze {
+        border-color: rgba(97,165,255,0.55);
+        background: linear-gradient(135deg, rgba(97,165,255,0.25), var(--surface-3));
+    }
+    .alert-banner.deep-freeze {
+        border-color: rgba(89,197,255,0.6);
+        background: linear-gradient(135deg, rgba(89,197,255,0.28), var(--surface-3));
     }
     .sun-badge {
         display: inline-flex;
@@ -532,9 +728,9 @@ st.markdown(
         gap: 8px;
         padding: 4px 10px;
         border-radius: 999px;
-        border: 1px solid rgba(242,168,91,0.35);
-        background: rgba(242,168,91,0.12);
-        color: #f6e0c3;
+        border: 1px solid var(--accent-3-border);
+        background: var(--accent-3-soft);
+        color: var(--text-primary);
         font-weight: 600;
         font-size: 0.82rem;
     }
@@ -542,8 +738,8 @@ st.markdown(
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: radial-gradient(circle at 30% 30%, #ffe29b, #f2a85b 60%);
-        box-shadow: 0 0 10px rgba(242,168,91,0.6);
+        background: radial-gradient(circle at 30% 30%, var(--accent-3-glow), var(--accent-3) 60%);
+        box-shadow: 0 0 10px var(--accent-3-glow);
         position: relative;
     }
     .sun-badge .sun-icon::after {
@@ -551,7 +747,7 @@ st.markdown(
         position: absolute;
         inset: -4px;
         border-radius: 50%;
-        border: 1px dashed rgba(242,168,91,0.45);
+        border: 1px dashed var(--accent-3-border);
         animation: sunPulse 6s linear infinite;
     }
     @keyframes sunPulse {
@@ -562,8 +758,8 @@ st.markdown(
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: radial-gradient(circle at 35% 35%, #d7dcff, #7a8cff 65%);
-        box-shadow: 0 0 10px rgba(122,140,255,0.6);
+        background: radial-gradient(circle at 35% 35%, var(--accent-2-soft), var(--accent-2) 65%);
+        box-shadow: 0 0 10px var(--accent-2-glow);
         position: relative;
     }
     .sun-badge .moon-icon::after {
@@ -571,7 +767,7 @@ st.markdown(
         position: absolute;
         inset: -4px;
         border-radius: 50%;
-        border: 1px dashed rgba(122,140,255,0.4);
+        border: 1px dashed var(--accent-2-border);
         animation: sunPulse 8s linear infinite;
     }
     .sunrise-day {
@@ -594,247 +790,41 @@ st.markdown(
         from { transform: translateX(-30%); }
         to { transform: translateX(30%); }
     }
-    @media (prefers-color-scheme: light) {
-        body { background: #f5f7fb; }
-        .main { background: #f5f7fb; }
+    body,
+    .stApp,
+    [data-testid="stAppViewContainer"] {
+        background: var(--bg);
+        color: var(--text-primary);
     }
-    body[data-theme="light"],
-    .stApp[data-theme="light"],
-    [data-testid="stAppViewContainer"][data-theme="light"] {
-        color: #111827;
-        background: #f5f7fb;
+    body .stMarkdown,
+    body .stCaption,
+    body .stText,
+    body .stSubheader,
+    body h1,
+    body h2,
+    body h3,
+    body h4,
+    .stApp .stMarkdown,
+    .stApp .stCaption,
+    .stApp .stText,
+    .stApp .stSubheader,
+    .stApp h1,
+    .stApp h2,
+    .stApp h3,
+    .stApp h4 {
+        color: var(--text-primary);
     }
-    body.theme-light,
-    .stApp.theme-light {
-        color: #111827;
-        background: #f5f7fb;
-        --text-primary: #111827;
-        --text-secondary: #4b5563;
-    }
-    body[data-theme="light"] .main,
-    .stApp[data-theme="light"] .main,
-    [data-testid="stAppViewContainer"][data-theme="light"] .main {
-        background: #f5f7fb;
-    }
-    body.theme-light .main,
-    .stApp.theme-light .main {
-        background: #f5f7fb;
-    }
-    body[data-theme="light"] .stMarkdown,
-    body[data-theme="light"] .stCaption,
-    body[data-theme="light"] .stText,
-    body[data-theme="light"] .stSubheader,
-    body[data-theme="light"] h1,
-    body[data-theme="light"] h2,
-    body[data-theme="light"] h3,
-    body[data-theme="light"] h4,
-    .stApp[data-theme="light"] .stMarkdown,
-    .stApp[data-theme="light"] .stCaption,
-    .stApp[data-theme="light"] .stText,
-    .stApp[data-theme="light"] .stSubheader,
-    .stApp[data-theme="light"] h1,
-    .stApp[data-theme="light"] h2,
-    .stApp[data-theme="light"] h3,
-    .stApp[data-theme="light"] h4 {
-        color: #111827;
-    }
-    body.theme-light .stMarkdown,
-    body.theme-light .stCaption,
-    body.theme-light .stText,
-    body.theme-light .stSubheader,
-    body.theme-light h1,
-    body.theme-light h2,
-    body.theme-light h3,
-    body.theme-light h4,
-    .stApp.theme-light .stMarkdown,
-    .stApp.theme-light .stCaption,
-    .stApp.theme-light .stText,
-    .stApp.theme-light .stSubheader,
-    .stApp.theme-light h1,
-    .stApp.theme-light h2,
-    .stApp.theme-light h3,
-    .stApp.theme-light h4 {
-        color: #111827;
-    }
-    body[data-theme="light"] .card,
-    .stApp[data-theme="light"] .card {
-        background: #ffffff;
-        border-color: #dde3ee;
-        color: #1b2432;
-    }
-    body.theme-light .card,
-    .stApp.theme-light .card {
-        background: #ffffff;
-        border-color: #dde3ee;
-        color: #1b2432;
-    }
-    body[data-theme="light"] .chart-header,
-    .stApp[data-theme="light"] .chart-header {
-        color: #1b2432;
-    }
-    body.theme-light .chart-header,
-    .stApp.theme-light .chart-header { color: #1b2432; }
-    body[data-theme="light"] .metric-card,
-    .stApp[data-theme="light"] .metric-card {
-        background: linear-gradient(160deg, #ffffff, #f2f5fb);
-        border-color: #dde3ee;
-    }
-    body.theme-light .metric-card,
-    .stApp.theme-light .metric-card {
-        background: linear-gradient(160deg, #ffffff, #f2f5fb);
-        border-color: #dde3ee;
-    }
-    body[data-theme="light"] .metric-card .label,
-    .stApp[data-theme="light"] .metric-card .label { color: #58708f; }
-    body[data-theme="light"] .metric-card .value,
-    .stApp[data-theme="light"] .metric-card .value { color: #1b2432; }
-    body[data-theme="light"] .metric-card .sub,
-    .stApp[data-theme="light"] .metric-card .sub { color: #5c6b7c; }
-    body.theme-light .metric-card .label,
-    .stApp.theme-light .metric-card .label { color: #58708f; }
-    body.theme-light .metric-card .value,
-    .stApp.theme-light .metric-card .value { color: #1b2432; }
-    body.theme-light .metric-card .sub,
-    .stApp.theme-light .metric-card .sub { color: #5c6b7c; }
-    body[data-theme="light"] .metric-expanders [data-testid="stExpander"],
-    .stApp[data-theme="light"] .metric-expanders [data-testid="stExpander"] {
-        background: #ffffff;
-        border-color: #dde3ee;
-    }
-    body.theme-light .metric-expanders [data-testid="stExpander"],
-    .stApp.theme-light .metric-expanders [data-testid="stExpander"] {
-        background: #ffffff;
-        border-color: #dde3ee;
-    }
-    body[data-theme="light"] .metric-expanders [data-testid="stExpander"] summary,
-    .stApp[data-theme="light"] .metric-expanders [data-testid="stExpander"] summary {
-        color: #111827;
-    }
-    body.theme-light .metric-expanders [data-testid="stExpander"] summary,
-    .stApp.theme-light .metric-expanders [data-testid="stExpander"] summary {
-        color: #111827;
-    }
-    body[data-theme="light"] .metric-expanders [data-testid="stExpander"] svg,
-    .stApp[data-theme="light"] .metric-expanders [data-testid="stExpander"] svg {
-        color: #111827;
-        fill: #111827;
-    }
-    body.theme-light .metric-expanders [data-testid="stExpander"] svg,
-    .stApp.theme-light .metric-expanders [data-testid="stExpander"] svg {
-        color: #111827;
-        fill: #111827;
-    }
-    body[data-theme="light"] .dash-title,
-    body[data-theme="light"] .overview-title,
-    .stApp[data-theme="light"] .dash-title,
-    .stApp[data-theme="light"] .overview-title {
-        color: #111827;
-    }
-    body.theme-light .dash-title,
-    body.theme-light .overview-title,
-    .stApp.theme-light .dash-title,
-    .stApp.theme-light .overview-title {
-        color: #111827 !important;
-    }
-    body[data-theme="light"] .wind-flag,
-    .stApp[data-theme="light"] .wind-flag {
-        background: rgba(37,99,235,0.08);
-        color: #1f2a44;
-        border-color: rgba(37,99,235,0.25);
-    }
-    body.theme-light .wind-flag,
-    .stApp.theme-light .wind-flag {
-        background: rgba(37,99,235,0.08);
-        color: #1f2a44;
-        border-color: rgba(37,99,235,0.25);
-    }
-    body[data-theme="light"] .wind-flag .wind-speed,
-    .stApp[data-theme="light"] .wind-flag .wind-speed {
-        background: rgba(37,99,235,0.1);
-        border-color: rgba(37,99,235,0.3);
-        color: #1f2a44;
-    }
-    body.theme-light .wind-flag .wind-speed,
-    .stApp.theme-light .wind-flag .wind-speed {
-        background: rgba(37,99,235,0.1);
-        border-color: rgba(37,99,235,0.3);
-        color: #1f2a44;
-    }
-    body.theme-light .sun-badge,
-    .stApp.theme-light .sun-badge {
-        background: rgba(242,168,91,0.15);
-        color: #5a3b1d;
-        border-color: rgba(242,168,91,0.35);
-    }
-    body[data-theme="light"] .wind-flag .arrow,
-    .stApp[data-theme="light"] .wind-flag .arrow {
-        color: #1f2a44;
-        border-color: rgba(37,99,235,0.25);
-        background: rgba(37,99,235,0.12);
-        box-shadow: none;
-    }
-    body.theme-light .wind-flag .arrow,
-    .stApp.theme-light .wind-flag .arrow {
-        color: #1f2a44;
-        border-color: rgba(37,99,235,0.25);
-        background: rgba(37,99,235,0.12);
-        box-shadow: none;
-    }
-    body[data-theme="light"] .gauge-block,
-    .stApp[data-theme="light"] .gauge-block {
-        background: #ffffff;
-        border-color: #dde3ee;
-    }
-    body.theme-light .gauge-block,
-    .stApp.theme-light .gauge-block {
-        background: #ffffff;
-        border-color: #dde3ee;
-    }
-    body[data-theme="light"] .gauge-header,
-    .stApp[data-theme="light"] .gauge-header { color: #1b2432; }
-    body.theme-light .gauge-header,
-    .stApp.theme-light .gauge-header { color: #1b2432; }
-    body[data-theme="light"] .gauge-muted,
-    .stApp[data-theme="light"] .gauge-muted { color: #5c6b7c; }
-    body.theme-light .gauge-muted,
-    .stApp.theme-light .gauge-muted { color: #5c6b7c; }
-    body[data-theme="light"] .ingest-shell,
-    .stApp[data-theme="light"] .ingest-shell { background: #ffffff; border-color: #dde3ee; }
-    body.theme-light .ingest-shell,
-    .stApp.theme-light .ingest-shell { background: #ffffff; border-color: #dde3ee; }
-    body[data-theme="light"] .ingest-chip,
-    .stApp[data-theme="light"] .ingest-chip { background: #f4f6fb; border-color: #dde3ee; color: #1b2432; }
-    body.theme-light .ingest-chip,
-    .stApp.theme-light .ingest-chip { background: #f4f6fb; border-color: #dde3ee; color: #1b2432; }
-    body[data-theme="light"] .ingest-meta,
-    .stApp[data-theme="light"] .ingest-meta { color: #5c6b7c; }
-    body.theme-light .ingest-meta,
-    .stApp.theme-light .ingest-meta { color: #5c6b7c; }
-    body[data-theme="light"] .ingest-pill,
-    .stApp[data-theme="light"] .ingest-pill { color: #1b2432; }
-    body.theme-light .ingest-pill,
-    .stApp.theme-light .ingest-pill { color: #1b2432; }
-    body[data-theme="light"] .info-icon,
-    .stApp[data-theme="light"] .info-icon { color: #1f2a44; border-color: rgba(37,99,235,0.35); }
-    body.theme-light .info-icon,
-    .stApp.theme-light .info-icon { color: #1f2a44; border-color: rgba(37,99,235,0.35); }
-    body[data-theme="light"] [data-baseweb="tab"],
-    .stApp[data-theme="light"] [data-baseweb="tab"] { color: #3b4252; }
-    body.theme-light [data-baseweb="tab"],
-    .stApp.theme-light [data-baseweb="tab"] { color: #3b4252; }
-    body[data-theme="light"] [data-baseweb="tab"][aria-selected="true"],
-    .stApp[data-theme="light"] [data-baseweb="tab"][aria-selected="true"] { color: #111827; }
-    body.theme-light [data-baseweb="tab"][aria-selected="true"],
-    .stApp.theme-light [data-baseweb="tab"][aria-selected="true"] { color: #111827; }
+    [data-baseweb="tab"] { color: var(--text-secondary); }
+    [data-baseweb="tab"][aria-selected="true"] { color: var(--text-primary); }
     .ingest-shell {
         margin: 4px 0 16px 0;
         padding: 14px 16px 16px 16px;
         border-radius: 14px;
-        border: 1px solid #1f2635;
+        border: 1px solid var(--border);
         background:
-            radial-gradient(circle at 10% 10%, rgba(97,165,255,0.08), transparent 38%),
-            radial-gradient(circle at 80% 20%, rgba(75,208,194,0.08), transparent 32%),
-            #0d1016;
+            radial-gradient(circle at 10% 10%, var(--accent-2-soft), transparent 38%),
+            radial-gradient(circle at 80% 20%, var(--accent-soft), transparent 32%),
+            var(--surface-3);
         box-shadow: 0 14px 40px rgba(0,0,0,0.38);
     }
     .ingest-status-row {
@@ -850,9 +840,9 @@ st.markdown(
         gap: 8px;
         padding: 6px 10px;
         border-radius: 10px;
-        background: #101722;
-        border: 1px solid #1c2432;
-        color: #e7ecf3;
+        background: var(--surface-4);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
         font-weight: 600;
         font-size: 0.85rem;
         min-height: 34px;
@@ -863,10 +853,10 @@ st.markdown(
         border-radius: 999px;
         box-shadow: 0 0 10px currentColor;
     }
-    .ingest-chip.ok { border-color: rgba(123,231,217,0.35); }
-    .ingest-chip.warn { border-color: rgba(255,209,102,0.35); }
-    .ingest-chip.offline { border-color: rgba(255,123,123,0.35); }
-    .ingest-chip.standby { border-color: rgba(154,164,181,0.35); }
+    .ingest-chip.ok { border-color: var(--status-ok-border); }
+    .ingest-chip.warn { border-color: var(--status-warn-border); }
+    .ingest-chip.offline { border-color: var(--status-bad-border); }
+    .ingest-chip.standby { border-color: var(--status-idle-border); }
     .ingest-body {
         display: flex;
         flex-direction: column;
@@ -877,7 +867,7 @@ st.markdown(
     }
     .ingest-meta {
         font-size: 0.72rem;
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-weight: 500;
     }
     .ingest-pill {
@@ -886,34 +876,34 @@ st.markdown(
         font-size: 0.72rem;
         letter-spacing: 0.6px;
         text-transform: uppercase;
-        border: 1px solid rgba(255,255,255,0.12);
-        color: #cfd6e5;
+        border: 1px solid var(--border-muted);
+        color: var(--text-secondary);
         margin-left: auto;
     }
-    .ingest-pill.ok { color: #7be7d9; border-color: rgba(123,231,217,0.4); }
-    .ingest-pill.warn { color: #ffd166; border-color: rgba(255,209,102,0.4); }
-    .ingest-pill.offline { color: #ff7b7b; border-color: rgba(255,123,123,0.4); }
-    .ingest-pill.standby { color: #9aa4b5; border-color: rgba(154,164,181,0.4); }
+    .ingest-pill.ok { color: var(--status-ok); border-color: var(--status-ok-border); }
+    .ingest-pill.warn { color: var(--status-warn); border-color: var(--status-warn-border); }
+    .ingest-pill.offline { color: var(--status-bad); border-color: var(--status-bad-border); }
+    .ingest-pill.standby { color: var(--status-idle); border-color: var(--status-idle-border); }
     .ingest-help {
         margin-top: 6px;
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-size: 0.78rem;
     }
     .ingest-divider {
         margin: 10px 0;
         height: 1px;
-        background: #1f2635;
+        background: var(--border);
         opacity: 0.7;
     }
     .ingest-snapshot {
         margin-top: 6px;
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-size: 0.78rem;
     }
     .ping-toast {
         margin: 6px 0 2px 0;
         font-size: 0.82rem;
-        color: #cfd6e5;
+        color: var(--text-secondary);
         opacity: 0;
         animation: pingFade 6s ease-in-out forwards;
     }
@@ -940,20 +930,20 @@ st.markdown(
         align-items: center;
         padding: 8px 10px;
         border-radius: 10px;
-        border: 1px solid #1b2332;
-        background: #0f1520;
+        border: 1px solid var(--border);
+        background: var(--surface-3);
     }
     .ingest-detail-row.warn {
-        border-color: rgba(255,209,102,0.45);
-        box-shadow: 0 0 0 1px rgba(255,209,102,0.08) inset;
+        border-color: var(--status-warn-border);
+        box-shadow: 0 0 0 1px var(--status-warn-soft) inset;
     }
     .ingest-detail-row.offline {
-        border-color: rgba(255,123,123,0.45);
-        box-shadow: 0 0 0 1px rgba(255,123,123,0.08) inset;
+        border-color: var(--status-bad-border);
+        box-shadow: 0 0 0 1px var(--status-bad-soft) inset;
     }
     .ingest-detail-row.alert {
-        border-color: rgba(255,123,123,0.55);
-        box-shadow: 0 0 0 1px rgba(255,123,123,0.14) inset;
+        border-color: var(--status-bad-border-strong);
+        box-shadow: 0 0 0 1px var(--status-bad-strong) inset;
     }
     .ingest-detail-row .meta {
         display: flex;
@@ -961,15 +951,15 @@ st.markdown(
         gap: 10px;
         flex-wrap: wrap;
         font-weight: 700;
-        color: #e7ecf3;
+        color: var(--text-primary);
     }
     .ingest-detail-row .detail {
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-size: 0.85rem;
     }
     .ingest-detail-row .last {
         text-align: right;
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-size: 0.82rem;
     }
     @media (max-width: 960px) {
@@ -988,14 +978,14 @@ st.markdown(
         flex-wrap: wrap;
     }
     .ingest-eyebrow {
-        color: #8fb7ff;
+        color: var(--accent-2);
         font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         font-weight: 700;
     }
     .ingest-summary {
-        color: #cfd6e5;
+        color: var(--text-secondary);
         font-size: 0.9rem;
     }
     .ingest-events {
@@ -1003,11 +993,11 @@ st.markdown(
         align-items: center;
         gap: 6px;
         margin-top: 6px;
-        color: #dbe7ff;
+        color: var(--text-primary);
         font-weight: 600;
     }
     .ingest-events span {
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-weight: 700;
     }
     .ingest-grid {
@@ -1026,7 +1016,7 @@ st.markdown(
         display: flex;
         align-items: center;
         gap: 10px;
-        color: #d8deed;
+        color: var(--text-primary);
         font-weight: 700;
     }
     .ingest-dot {
@@ -1036,14 +1026,14 @@ st.markdown(
         box-shadow: 0 0 12px currentColor;
     }
     .ingest-name { font-size: 1rem; }
-    .ingest-sub { font-size: 0.8rem; color: #9aa4b5; }
+    .ingest-sub { font-size: 0.8rem; color: var(--text-secondary); }
     .ingest-bar {
         position: relative;
         width: 100%;
         height: 14px;
         border-radius: 999px;
-        background: #0b0f15;
-        border: 1px solid #1f2635;
+        background: var(--surface-3);
+        border: 1px solid var(--border);
         overflow: hidden;
     }
     .ingest-fill {
@@ -1051,7 +1041,7 @@ st.markdown(
         inset: 0;
         width: calc(var(--fill, 1) * 100%);
         background: linear-gradient(90deg, var(--fill-start), var(--fill-end));
-        filter: drop-shadow(0 0 8px rgba(97,165,255,0.4));
+        filter: drop-shadow(0 0 8px var(--accent-2-glow));
         transition: width 0.5s ease;
     }
     .ingest-pulse {
@@ -1074,16 +1064,16 @@ st.markdown(
         transform: translateY(-50%);
         padding: 4px 8px;
         border-radius: 8px;
-        background: #121824;
-        border: 1px solid #1f2635;
-        color: #9aa4b5;
+        background: var(--surface-4);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
         font-size: 0.75rem;
         letter-spacing: 0.6px;
         text-transform: uppercase;
     }
     .ingest-latency {
         text-align: right;
-        color: #9aa4b5;
+        color: var(--text-secondary);
         font-size: 0.85rem;
     }
     @media (max-width: 960px) {
@@ -1123,6 +1113,133 @@ def html_escape(value):
     if value is None:
         return "--"
     return html.escape(str(value))
+
+
+def render_alert_overrides_sync():
+    components.html(
+        """
+        <script>
+        (function() {
+          const parent = window.parent;
+          if (!parent || !parent.document) return;
+          const storage = parent.localStorage || window.localStorage;
+          const emailKey = "tempest:alert_email_to";
+          const smsKey = "tempest:alert_sms_to";
+          const emailLabel = "Alert recipient email";
+          const smsLabel = "Verizon SMS number";
+
+          function findInput(labelText) {
+            const labels = Array.from(parent.document.querySelectorAll("label"));
+            const label = labels.find((el) => el.textContent.trim().startsWith(labelText));
+            if (!label) return null;
+            const wrapper = label.closest('div[data-testid="stTextInput"]');
+            if (!wrapper) return null;
+            return wrapper.querySelector("input");
+          }
+
+          function setInputValue(input, value) {
+            const setter = Object.getOwnPropertyDescriptor(parent.HTMLInputElement.prototype, "value").set;
+            setter.call(input, value);
+            input.dispatchEvent(new parent.Event("input", { bubbles: true }));
+            input.dispatchEvent(new parent.Event("change", { bubbles: true }));
+          }
+
+          function attachListener(input, key) {
+            if (input.dataset.tempestStorage === "1") return;
+            input.dataset.tempestStorage = "1";
+            input.addEventListener("input", () => {
+              const val = input.value || "";
+              if (val) {
+                storage.setItem(key, val);
+              } else {
+                storage.removeItem(key);
+              }
+            });
+          }
+
+          function init() {
+            const emailInput = findInput(emailLabel);
+            const smsInput = findInput(smsLabel);
+            if (!emailInput || !smsInput) return false;
+            const storedEmail = storage.getItem(emailKey) || "";
+            const storedSms = storage.getItem(smsKey) || "";
+            if (!emailInput.value && storedEmail) setInputValue(emailInput, storedEmail);
+            if (!smsInput.value && storedSms) setInputValue(smsInput, storedSms);
+            attachListener(emailInput, emailKey);
+            attachListener(smsInput, smsKey);
+            return true;
+          }
+
+          if (parent.__tempestAlertStorageTimer) {
+            parent.clearInterval(parent.__tempestAlertStorageTimer);
+          }
+          let tries = 0;
+          parent.__tempestAlertStorageTimer = parent.setInterval(() => {
+            tries += 1;
+            if (init() || tries > 12) {
+              parent.clearInterval(parent.__tempestAlertStorageTimer);
+              parent.__tempestAlertStorageTimer = null;
+            }
+          }, 400);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def alert_overrides_from_session():
+    return {
+        "alert_email_to": st.session_state.get("alert_email_to", "").strip(),
+        "alert_sms_to": st.session_state.get("alert_sms_to", "").strip(),
+        "smtp_username": st.session_state.get("smtp_username", "").strip(),
+        "smtp_password": st.session_state.get("smtp_password", ""),
+        "smtp_from": st.session_state.get("smtp_from", "").strip(),
+    }
+
+
+def send_test_alerts(temp_f, when_local):
+    overrides = alert_overrides_from_session()
+    email_to, sms_to = resolve_alert_recipients(DB_PATH, overrides=overrides)
+    title = "Freeze Warning (Test)"
+    message_body = build_freeze_alert_message(title, temp_f, when_local)
+    subject = f"{title} - Tempest {temp_f:.1f} F"
+    email_sent, email_error = send_email(
+        subject,
+        message_body,
+        to_address=email_to,
+        overrides=overrides,
+        return_error=True,
+    )
+    sms_sent, sms_error = send_verizon_sms(
+        message_body,
+        sms_number=sms_to,
+        overrides=overrides,
+        return_error=True,
+    )
+    return email_sent, sms_sent, email_error, sms_error
+
+
+def build_freeze_banner(temp_f, when_local):
+    if temp_f is None or pd.isna(temp_f):
+        return ""
+    temp_f = float(temp_f)
+    time_text = fmt_time(when_local)
+    if temp_f <= DEEP_FREEZE_F:
+        title = "Deep Freeze Advisory"
+        level_class = "deep-freeze"
+    elif temp_f <= FREEZE_WARNING_F:
+        title = "Freeze Warning"
+        level_class = "freeze"
+    else:
+        return ""
+    detail = f"Tempest {temp_f:.1f} F at {time_text}"
+    return (
+        f"<div class=\"alert-banner {level_class}\">"
+        f"<span class=\"alert-title\">{html_escape(title)}</span>"
+        f"<span class=\"alert-meta\">{html_escape(detail)}</span>"
+        "</div>"
+    )
 
 
 def collector_row_class(status, error_recent=False):
@@ -1387,20 +1504,29 @@ def aqi_category(aqi):
     return "Hazardous"
 
 
+def aqi_badge_label(aqi):
+    category = aqi_category(aqi)
+    return {
+        "Unhealthy for Sensitive Groups": "Sensitive",
+        "Very Unhealthy": "Very",
+        "Hazardous": "Hazard",
+    }.get(category, category)
+
+
 def aqi_color(aqi):
     if aqi is None or pd.isna(aqi):
         return "#2d2f36"
     if aqi <= 50:
-        return "#1e8f4b"
+        return "#00e400"
     if aqi <= 100:
-        return "#c6a700"
+        return "#ffff00"
     if aqi <= 150:
-        return "#d35400"
+        return "#ff7e00"
     if aqi <= 200:
-        return "#c0392b"
+        return "#ff0000"
     if aqi <= 300:
-        return "#8e44ad"
-    return "#6e2c00"
+        return "#8f3f97"
+    return "#7e0023"
 
 
 def latest_ts_str(ts_epoch):
@@ -1489,13 +1615,15 @@ def clean_chart(data, height=240, title=None):
 
     return (
         chart
-        .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
-        .configure_legend(labelColor="#cfd6e5", titleColor="#cfd6e5")
-        .configure_title(color="#cfd6e5")
+        .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
+        .configure_legend(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR)
+        .configure_title(color=CHART_TITLE_COLOR)
     )
 
 
-def bar_chart(data, height=200, title=None, color="#61a5ff"):
+def bar_chart(data, height=200, title=None, color=None):
+    if color is None:
+        color = THEME_COLORS["accent2"]
     chart = (
         alt.Chart(data)
         .mark_bar(color=color)
@@ -1504,16 +1632,18 @@ def bar_chart(data, height=200, title=None, color="#61a5ff"):
             y=alt.Y("value:Q", title=None),
         )
         .properties(height=height)
-        .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
-        .configure_title(color="#cfd6e5")
+        .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
+        .configure_title(color=CHART_TITLE_COLOR)
     )
     if title:
         chart = chart.properties(title=title)
     return chart
 
 
-def sidebar_gauge(container, label, value, min_val, max_val, unit="", precision=1, color="#59c5ff", highlight=False):
+def sidebar_gauge(container, label, value, min_val, max_val, unit="", precision=1, color=None, highlight=False, meta_text=None):
     """Render a horizontal gauge in the sidebar container."""
+    if color is None:
+        color = THEME_COLORS["accent2"]
     clean_value = None if value is None or pd.isna(value) else float(value)
     if clean_value is None or max_val == min_val:
         pct = 0
@@ -1524,15 +1654,16 @@ def sidebar_gauge(container, label, value, min_val, max_val, unit="", precision=
         display_value = f"{clean_value:.{precision}f}{unit}"
 
     pulse_class = "gauge-pulse" if highlight else ""
+    meta_html = f"<span class='gauge-category'>{meta_text}</span>" if meta_text else ""
     container.markdown(
         f"""
         <div class="gauge-block {pulse_class}">
             <div class="gauge-header">
-                <span>{label}</span>
+                <span>{label}{meta_html}</span>
                 <span>{display_value}</span>
             </div>
             <div class="gauge-track">
-                <div class="gauge-fill" style="width:{pct*100:.0f}%; background: linear-gradient(90deg, {color}, #4b83ff);"></div>
+                <div class="gauge-fill" style="width:{pct*100:.0f}%; background: {color};"></div>
             </div>
         </div>
         """,
@@ -1547,19 +1678,64 @@ def render_sidebar_gauges(container, tempest_latest=None, airlink_latest=None, h
         return
 
     container.markdown("### Live Gauges")
+    airlink_temp = airlink_latest.get("temp_f") if airlink_latest is not None else None
     if tempest_latest is not None:
-        sidebar_gauge(container, "Tempest Temp (F)", tempest_latest.air_temperature_f, -10, 110, precision=1, color="#59c5ff", highlight=highlights.get("temp"))
-        sidebar_gauge(container, "Humidity (%)", tempest_latest.relative_humidity, 0, 100, precision=0, color="#4bd0c2", highlight=highlights.get("hum"))
-        sidebar_gauge(container, "Pressure (inHg)", tempest_latest.pressure_inhg, 28, 32, precision=2, color="#9c7bff", highlight=highlights.get("pressure"))
-        sidebar_gauge(container, "Wind Avg (mph)", tempest_latest.wind_speed_mph, 0, 40, precision=1, color="#61a5ff", highlight=highlights.get("wind"))
+        sidebar_gauge(container, "Tempest Temp (F)", tempest_latest.air_temperature_f, -10, 110, precision=1, color=GAUGE_COLORS["temp"], highlight=highlights.get("temp"))
+        if airlink_temp is not None and not pd.isna(airlink_temp):
+            sidebar_gauge(container, "AirLink Temp (F)", airlink_temp, -10, 110, precision=1, color=GAUGE_COLORS["air_temp"])
+        heat_index = tempest_latest.get("heat_index_f")
+        if heat_index is not None and not pd.isna(heat_index):
+            sidebar_gauge(container, "Feels Like (F)", heat_index, -10, 110, precision=1, color=GAUGE_COLORS["feels"], highlight=highlights.get("temp"))
+        sidebar_gauge(container, "Humidity (%)", tempest_latest.relative_humidity, 0, 100, precision=0, color=GAUGE_COLORS["hum"], highlight=highlights.get("hum"))
+        sidebar_gauge(container, "Pressure (inHg)", tempest_latest.pressure_inhg, 28, 32, precision=2, color=GAUGE_COLORS["pressure"], highlight=highlights.get("pressure"))
+        sidebar_gauge(container, "Wind Avg (mph)", tempest_latest.wind_speed_mph, 0, 40, precision=1, color=GAUGE_COLORS["wind"], highlight=highlights.get("wind"))
+        gust_value = tempest_latest.get("wind_gust_mph")
+        if gust_value is not None and not pd.isna(gust_value):
+            sidebar_gauge(container, "Wind Gust (mph)", gust_value, 0, 60, precision=1, color=GAUGE_COLORS["gust"], highlight=highlights.get("wind"))
     if airlink_latest is not None:
         aqi_value = None if pd.isna(airlink_latest.aqi_pm25) else airlink_latest.aqi_pm25
         aqi_col = aqi_color(aqi_value)
-        sidebar_gauge(container, "AQI PM2.5", aqi_value, 0, 300, precision=0, color=aqi_col, highlight=highlights.get("aqi"))
-        container.markdown(
-            f"<div class='gauge-muted'>AQI Category: {aqi_category(aqi_value)}</div>",
-            unsafe_allow_html=True,
+        aqi_category_text = aqi_category(aqi_value)
+        sidebar_gauge(
+            container,
+            "AQI PM2.5",
+            aqi_value,
+            0,
+            300,
+            precision=0,
+            color=aqi_col,
+            highlight=highlights.get("aqi"),
+            meta_text=aqi_category_text if aqi_category_text != "--" else None,
         )
+
+
+def render_sidebar_clock(container):
+    """Render a live clock styled like the live gauges."""
+    try:
+        now_local = pd.Timestamp.now(tz="UTC").tz_convert(LOCAL_TZ)
+        time_text = now_local.strftime("%I:%M:%S %p").lstrip("0")
+        date_text = now_local.strftime("%a, %b %d")
+        fill_pct = int((now_local.second / 60) * 100)
+    except Exception:
+        now_local = datetime.now()
+        time_text = now_local.strftime("%I:%M:%S %p").lstrip("0")
+        date_text = now_local.strftime("%a, %b %d")
+        fill_pct = 0
+    container.markdown(
+        f"""
+        <div class="gauge-block gauge-clock">
+            <div class="gauge-header">
+                <span>Local Time</span>
+                <span class="clock-time" data-clock-time>{time_text}</span>
+            </div>
+            <div class="gauge-muted clock-date" data-clock-date>{date_text}</div>
+            <div class="gauge-track">
+                <div class="gauge-fill" data-clock-fill style="width:{fill_pct}%;"></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def delta_over_window(series):
@@ -1582,8 +1758,10 @@ def format_latency(seconds):
     return f"{seconds/3600:.1f}h ago"
 
 
-def ingestion_status(label, last_epoch, cadence_seconds, now_ts, max_lag_seconds=900, color="#59c5ff"):
+def ingestion_status(label, last_epoch, cadence_seconds, now_ts, max_lag_seconds=900, color=None):
     """Compatibility helper for older ingestion bar usage."""
+    if color is None:
+        color = THEME_COLORS["accent2"]
     if last_epoch is None or pd.isna(last_epoch):
         return {
             "label": label,
@@ -1653,7 +1831,10 @@ def build_collector_statuses(now_ts):
         name_key = row["name"]
         label = COLLECTOR_LABELS.get(name_key, name_key)
         stale_seconds = COLLECTOR_STALE_SECONDS.get(name_key, 300)
-        colors = COLLECTOR_COLORS.get(name_key, ("#9aa4b5", "#c4cad6"))
+        colors = COLLECTOR_COLORS.get(
+            name_key,
+            (THEME_COLORS["text_secondary"], THEME_COLORS["text_muted"]),
+        )
 
         ok_age = seconds_since_epoch(row["last_ok_epoch"], now_ts)
         if ok_age is None:
@@ -2123,21 +2304,21 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@11.1.2/dist/gridstack.min.css" />
     <style>
       :root {{
-        color-scheme: dark;
+        color-scheme: var(--color-scheme, dark);
       }}
       .dash-shell {{
         padding: 10px 6px 20px 6px;
         border-radius: 18px;
-        background: radial-gradient(circle at 20% 10%, rgba(97,165,255,0.16), transparent 45%), #0c111a;
-        border: 1px solid #1c2434;
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+        background: radial-gradient(circle at 20% 10%, var(--accent-2-soft, rgba(97,165,255,0.16)), transparent 45%), var(--surface-3, #0c111a);
+        border: 1px solid var(--border, #1c2434);
+        box-shadow: inset 0 0 0 1px var(--border-muted, rgba(255,255,255,0.02));
       }}
       .grid-stack-item-content {{
-        background: linear-gradient(160deg, rgba(22,30,44,0.92), rgba(12,16,24,0.95));
+        background: linear-gradient(160deg, var(--surface-2, rgba(22,30,44,0.92)), var(--surface-3, rgba(12,16,24,0.95)));
         border-radius: 16px;
-        border: 1px solid rgba(110,140,190,0.18);
+        border: 1px solid var(--border-muted, rgba(110,140,190,0.18));
         box-shadow: 0 20px 40px rgba(0,0,0,0.35);
-        color: #e8edf7;
+        color: var(--text-primary, #e8edf7);
         padding: 14px;
         overflow: hidden;
       }}
@@ -2145,17 +2326,17 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
         font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.12em;
-        color: #8aa4c8;
+        color: var(--text-muted, #8aa4c8);
         margin-bottom: 6px;
       }}
       .tile-value {{
         font-size: 1.9rem;
         font-weight: 700;
-        color: #f4f7ff;
+        color: var(--text-primary, #f4f7ff);
       }}
       .tile-sub {{
         font-size: 0.82rem;
-        color: #9fb2cc;
+        color: var(--text-secondary, #9fb2cc);
       }}
       .tile-meta {{
         display: flex;
@@ -2163,15 +2344,15 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
         flex-wrap: wrap;
         margin-top: 6px;
         font-size: 0.78rem;
-        color: #9fb2cc;
+        color: var(--text-secondary, #9fb2cc);
       }}
       .tile-pill {{
         padding: 2px 8px;
         border-radius: 999px;
-        background: rgba(123,231,217,0.12);
-        border: 1px solid rgba(123,231,217,0.3);
+        background: var(--accent-soft, rgba(123,231,217,0.12));
+        border: 1px solid var(--accent-border, rgba(123,231,217,0.3));
         font-size: 0.72rem;
-        color: #bfeee6;
+        color: var(--text-primary, #bfeee6);
       }}
       .tile-canvas {{
         width: 100%;
@@ -2183,7 +2364,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
       }}
       .dial-label {{
         font-size: 0.84rem;
-        color: #9fb2cc;
+        color: var(--text-secondary, #9fb2cc);
       }}
       .raw-table {{
         width: 100%;
@@ -2192,11 +2373,11 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
       }}
       .raw-table th, .raw-table td {{
         padding: 6px 8px;
-        border-bottom: 1px solid rgba(255,255,255,0.06);
+        border-bottom: 1px solid var(--border-muted, rgba(255,255,255,0.06));
         text-align: left;
       }}
       .raw-table th {{
-        color: #8aa4c8;
+        color: var(--text-muted, #8aa4c8);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         font-size: 0.7rem;
@@ -2204,7 +2385,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
       .raw-scroll {{
         max-height: 460px;
         overflow: auto;
-        border: 1px solid rgba(255,255,255,0.05);
+        border: 1px solid var(--border-muted, rgba(255,255,255,0.05));
         border-radius: 12px;
       }}
       .raw-scroll::-webkit-scrollbar,
@@ -2236,6 +2417,16 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           float: true,
           resizable: {{ handles: 'e, se, s, sw, w' }},
         }}, document.getElementById("{grid_id}"));
+        const rootStyles = getComputedStyle(document.documentElement);
+        const cssVar = (name, fallback) => rootStyles.getPropertyValue(name).trim() || fallback;
+        const chartText = cssVar("--chart-text", "#9fb2cc");
+        const chartTitle = cssVar("--chart-title", "#f4f7ff");
+        const chartGrid = cssVar("--chart-grid", "rgba(255,255,255,0.12)");
+        const accent = cssVar("--accent-2", "#61a5ff");
+        const accentAlt = cssVar("--accent", "#7be7d9");
+        const accentWarm = cssVar("--accent-3", "#f2a85b");
+        const accentSoft = cssVar("--accent-soft", "rgba(123,231,217,0.25)");
+        const accent2Soft = cssVar("--accent-2-soft", "rgba(97,165,255,0.12)");
 
         function toSeries(series) {{
           return (series || []).map((d) => d.v);
@@ -2276,7 +2467,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           const pad = 28;
           const w = width - pad * 2;
           const h = height - pad * 2;
-          ctx.strokeStyle = "rgba(255,255,255,0.12)";
+          ctx.strokeStyle = chartGrid;
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(pad, pad);
@@ -2284,7 +2475,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           ctx.lineTo(pad + w, pad + h);
           ctx.stroke();
           seriesData.forEach((series, idx) => {{
-            const color = colors[idx] || "#61a5ff";
+            const color = colors[idx] || accent;
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -2296,7 +2487,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
             }});
             ctx.stroke();
           }});
-          ctx.fillStyle = "#9fb2cc";
+          ctx.fillStyle = chartText;
           ctx.font = "12px sans-serif";
           ctx.textAlign = "left";
           ctx.fillText(minV.toFixed(1), 6, pad + h);
@@ -2312,7 +2503,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           }}
         }}
 
-        function drawDial(canvasId, value, minV, maxV, accent) {{
+        function drawDial(canvasId, value, minV, maxV, accentColor) {{
           const canvas = document.getElementById(canvasId);
           if (!canvas) return;
           const {{ ctx, width, height }} = setupCanvas(canvas, 200, 180);
@@ -2320,22 +2511,22 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           const cy = height * 0.62;
           const radius = Math.min(width, height) * 0.42;
           ctx.clearRect(0, 0, width, height);
-          ctx.strokeStyle = "rgba(255,255,255,0.12)";
+          ctx.strokeStyle = chartGrid;
           ctx.lineWidth = 10;
           ctx.beginPath();
           ctx.arc(cx, cy, radius, Math.PI, 0);
           ctx.stroke();
           const ratio = Math.max(0, Math.min(1, (value - minV) / (maxV - minV)));
-          ctx.strokeStyle = accent || "#61a5ff";
+          ctx.strokeStyle = accentColor || accent;
           ctx.beginPath();
           ctx.arc(cx, cy, radius, Math.PI, Math.PI + ratio * Math.PI);
           ctx.stroke();
-          ctx.fillStyle = "#f4f7ff";
+          ctx.fillStyle = chartTitle;
           ctx.font = "700 28px sans-serif";
           ctx.textAlign = "center";
           ctx.fillText(value.toFixed(1), cx, cy);
           ctx.font = "12px sans-serif";
-          ctx.fillStyle = "#9fb2cc";
+          ctx.fillStyle = chartText;
           ctx.fillText(minV.toFixed(0), cx - radius + 10, cy + 18);
           ctx.fillText(maxV.toFixed(0), cx + radius - 10, cy + 18);
         }}
@@ -2355,7 +2546,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           const pad = 28;
           const w = width - pad * 2;
           const h = height - pad * 2;
-          ctx.fillStyle = color || "rgba(123,231,217,0.7)";
+          ctx.fillStyle = color || accentAlt;
           points.forEach((p) => {{
             const x = pad + w * (p.x - minX) / Math.max(1e-6, maxX - minX);
             const y = pad + h - h * (p.y - minY) / Math.max(1e-6, maxY - minY);
@@ -2363,7 +2554,7 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
             ctx.arc(x, y, 3, 0, Math.PI * 2);
             ctx.fill();
           }});
-          ctx.fillStyle = "#9fb2cc";
+          ctx.fillStyle = chartText;
           ctx.font = "12px sans-serif";
           ctx.textAlign = "left";
           ctx.fillText(minY.toFixed(0), 6, pad + h);
@@ -2382,9 +2573,9 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           const pad = 18;
           const w = width - pad * 2;
           const h = height - pad * 2;
-          ctx.fillStyle = "rgba(97,165,255,0.12)";
+          ctx.fillStyle = accent2Soft;
           ctx.fillRect(pad, pad, w, h);
-          ctx.fillStyle = "rgba(123,231,217,0.25)";
+          ctx.fillStyle = accentSoft;
           const comfortX = pad + w * 0.35;
           const comfortW = w * 0.3;
           const comfortY = pad + h * 0.3;
@@ -2395,11 +2586,11 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
           const hNorm = Math.max(0, Math.min(1, humValue / 100));
           const x = pad + w * tNorm;
           const y = pad + h - h * hNorm;
-          ctx.fillStyle = "#f4f7ff";
+          ctx.fillStyle = chartTitle;
           ctx.beginPath();
           ctx.arc(x, y, 5, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = "#9fb2cc";
+          ctx.fillStyle = chartText;
           ctx.font = "12px sans-serif";
           ctx.fillText("Temp", pad, height - 6);
           ctx.save();
@@ -2410,19 +2601,19 @@ def render_grid_dashboard(tab_id, tiles_html, data_payload, height=900):
         }}
 
         function renderAll() {{
-          drawLine("overviewTempChart", [payload.temp, payload.heat], ["#61a5ff", "#7be7d9"]);
-          drawLine("overviewAqiChart", [payload.aqi], ["#c6f36b"]);
-          drawLine("trendTempChart", [payload.temp, payload.heat], ["#61a5ff", "#7be7d9"]);
-          drawLine("trendAqiChart", [payload.aqi], ["#c6f36b"]);
-          drawLine("trendWindChart", [payload.wind, payload.gust], ["#61a5ff", "#f2a85b"]);
-          drawLine("compareTempChart", [payload.temp_today, payload.temp_yesterday], ["#61a5ff", "#f2a85b"]);
-          drawScatter("compareScatterChart", payload.aqi_wind, "#7be7d9");
+          drawLine("overviewTempChart", [payload.temp, payload.heat], [accent, accentAlt]);
+          drawLine("overviewAqiChart", [payload.aqi], [accentWarm]);
+          drawLine("trendTempChart", [payload.temp, payload.heat], [accent, accentAlt]);
+          drawLine("trendAqiChart", [payload.aqi], [accentWarm]);
+          drawLine("trendWindChart", [payload.wind, payload.gust], [accent, accentWarm]);
+          drawLine("compareTempChart", [payload.temp_today, payload.temp_yesterday], [accent, accentWarm]);
+          drawScatter("compareScatterChart", payload.aqi_wind, accentAlt);
           drawComfort("comfortChart", payload.current_temp, payload.current_humidity);
           if (payload.current_wind !== null) {{
-            drawDial("windDial", payload.current_wind, 0, 40, "#61a5ff");
+            drawDial("windDial", payload.current_wind, 0, 40, accent);
           }}
           if (payload.current_pressure !== null) {{
-            drawDial("pressureDial", payload.current_pressure, 28, 31, "#f2a85b");
+            drawDial("pressureDial", payload.current_pressure, 28, 31, accentWarm);
           }}
         }}
         renderAll();
@@ -2506,26 +2697,54 @@ until_epoch = None
 window_desc = "this window"
 
 if filter_mode == "Window (hours)":
-    preset_defs = [(6, "6h"), (12, "12h"), (24, "24h"), (168, "7d")]
-    preset_cols = st.sidebar.columns(len(preset_defs))
-    for col, val, label in zip(preset_cols, [p[0] for p in preset_defs], [p[1] for p in preset_defs]):
-        if col.button(label):
-            st.session_state.hours = val
-            filter_mode = "Window (hours)"
-            st.session_state.filter_mode = filter_mode
+    preset_map = {
+        "6h": 6,
+        "12h": 12,
+        "24h": 24,
+        "7d": 168,
+        "Custom": None,
+    }
+    if "hour_preset" not in st.session_state:
+        st.session_state.hour_preset = "Custom"
+
+    def apply_hour_preset():
+        selected = st.session_state.hour_preset
+        preset_value = preset_map.get(selected)
+        if preset_value is not None:
+            st.session_state.hours = preset_value
+
+    def sync_hour_preset():
+        hours_value = st.session_state.hours
+        matched = next(
+            (label for label, val in preset_map.items() if val == hours_value),
+            "Custom",
+        )
+        st.session_state.hour_preset = matched
+
+    st.sidebar.markdown("<div id='hour-presets'></div>", unsafe_allow_html=True)
+    st.sidebar.radio(
+        "Quick window",
+        list(preset_map.keys()),
+        key="hour_preset",
+        on_change=apply_hour_preset,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
 
     if filter_mode == "Window (hours)":
-        st.session_state.hours = st.sidebar.slider(
+        hours = st.sidebar.slider(
             "Time window (hours)",
             min_value=1,
             max_value=168,
             value=int(st.session_state.hours),
+            key="hours",
+            on_change=sync_hour_preset,
         )
 
         since_epoch = int(
-            (pd.Timestamp.utcnow() - pd.Timedelta(hours=st.session_state.hours)).timestamp()
+            (pd.Timestamp.utcnow() - pd.Timedelta(hours=hours)).timestamp()
         )
-        window_desc = f"the last {st.session_state.hours}h"
+        window_desc = f"the last {hours}h"
 
 if filter_mode == "Custom dates":
     date_range = st.sidebar.date_input(
@@ -2554,36 +2773,367 @@ else:
     since_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=st.session_state.hours)).timestamp())
     window_desc = f"the last {st.session_state.hours}h"
 
-with st.sidebar.expander("Theme", expanded=False):
+with st.sidebar.container():
     palette_options = {
-        "Aurora": {"scheme": "viridis", "accent": "#7be7d9", "accent2": "#61a5ff", "accent3": "#f2a85b"},
-        "Solstice": {"scheme": "plasma", "accent": "#ffcc66", "accent2": "#ff8a5c", "accent3": "#6f79ff"},
-        "Monsoon": {"scheme": "magma", "accent": "#5eead4", "accent2": "#38bdf8", "accent3": "#f472b6"},
-        "Ember": {"scheme": "inferno", "accent": "#f97316", "accent2": "#f43f5e", "accent3": "#facc15"},
+        "Aurora": {
+            "scheme": "viridis",
+            "mode": "dark",
+            "bg": "#0f1115",
+            "surface": "#161920",
+            "surface_2": "#1a1d23",
+            "surface_3": "#0d1016",
+            "surface_4": "#101722",
+            "border": "#232834",
+            "text_primary": "#f4f7ff",
+            "text_secondary": "#9aa4b5",
+            "text_muted": "#8aa4c8",
+            "accent": "#7be7d9",
+            "accent2": "#61a5ff",
+            "accent3": "#f2a85b",
+            "status_ok": "#7be7d9",
+            "status_warn": "#f2a85b",
+            "status_bad": "#ff7b7b",
+            "status_idle": "#9aa4b5",
+        },
+        "Solstice": {
+            "scheme": "plasma",
+            "mode": "dark",
+            "bg": "#121015",
+            "surface": "#1b1616",
+            "surface_2": "#1f1a1a",
+            "surface_3": "#111013",
+            "surface_4": "#171318",
+            "border": "#2a2122",
+            "text_primary": "#fdf7f0",
+            "text_secondary": "#cbbfb4",
+            "text_muted": "#b4a39a",
+            "accent": "#ffcc66",
+            "accent2": "#ff8a5c",
+            "accent3": "#6f79ff",
+            "status_ok": "#ffcc66",
+            "status_warn": "#ff8a5c",
+            "status_bad": "#ff6b6b",
+            "status_idle": "#cbbfb4",
+        },
+        "Monsoon": {
+            "scheme": "magma",
+            "mode": "dark",
+            "bg": "#0e1117",
+            "surface": "#171a22",
+            "surface_2": "#1b1f2a",
+            "surface_3": "#0c0f15",
+            "surface_4": "#121721",
+            "border": "#253046",
+            "text_primary": "#f5f7ff",
+            "text_secondary": "#a1acc4",
+            "text_muted": "#8b95b0",
+            "accent": "#5eead4",
+            "accent2": "#38bdf8",
+            "accent3": "#f472b6",
+            "status_ok": "#5eead4",
+            "status_warn": "#f472b6",
+            "status_bad": "#ff6b6b",
+            "status_idle": "#a1acc4",
+        },
+        "Ember": {
+            "scheme": "inferno",
+            "mode": "dark",
+            "bg": "#140e0b",
+            "surface": "#1d1512",
+            "surface_2": "#221a16",
+            "surface_3": "#100c0a",
+            "surface_4": "#191210",
+            "border": "#2f2420",
+            "text_primary": "#fff4e8",
+            "text_secondary": "#ccb7a8",
+            "text_muted": "#b49c8f",
+            "accent": "#f97316",
+            "accent2": "#f43f5e",
+            "accent3": "#facc15",
+            "status_ok": "#f97316",
+            "status_warn": "#facc15",
+            "status_bad": "#ff6b6b",
+            "status_idle": "#ccb7a8",
+        },
+        "Glacier": {
+            "scheme": "cividis",
+            "mode": "light",
+            "bg": "#f4f7fb",
+            "surface": "#ffffff",
+            "surface_2": "#f7f9fc",
+            "surface_3": "#e7edf5",
+            "surface_4": "#eef3f9",
+            "border": "#d5dde8",
+            "text_primary": "#101828",
+            "text_secondary": "#475467",
+            "text_muted": "#5b677a",
+            "accent": "#8fe3ff",
+            "accent2": "#4f7ecb",
+            "accent3": "#ffd39c",
+            "status_ok": "#4f7ecb",
+            "status_warn": "#ffd39c",
+            "status_bad": "#d64545",
+            "status_idle": "#475467",
+        },
+        "Harbor Fog": {
+            "scheme": "tableau10",
+            "mode": "light",
+            "bg": "#f2f4f7",
+            "surface": "#ffffff",
+            "surface_2": "#f5f7fa",
+            "surface_3": "#e6ebf2",
+            "surface_4": "#eef2f7",
+            "border": "#d0d7e2",
+            "text_primary": "#1f2937",
+            "text_secondary": "#4b5563",
+            "text_muted": "#64748b",
+            "accent": "#5fb3b3",
+            "accent2": "#3b6ea5",
+            "accent3": "#d8b26e",
+            "status_ok": "#3b6ea5",
+            "status_warn": "#d8b26e",
+            "status_bad": "#d64545",
+            "status_idle": "#4b5563",
+        },
+        "Canyon": {
+            "scheme": "set2",
+            "mode": "dark",
+            "bg": "#140f0d",
+            "surface": "#1f1714",
+            "surface_2": "#241b17",
+            "surface_3": "#100c0a",
+            "surface_4": "#191210",
+            "border": "#30241e",
+            "text_primary": "#fff1e6",
+            "text_secondary": "#c6b1a3",
+            "text_muted": "#b19a8b",
+            "accent": "#e76f51",
+            "accent2": "#f4a261",
+            "accent3": "#2a9d8f",
+            "status_ok": "#e76f51",
+            "status_warn": "#f4a261",
+            "status_bad": "#ff6b6b",
+            "status_idle": "#c6b1a3",
+        },
+        "Grove": {
+            "scheme": "set3",
+            "mode": "dark",
+            "bg": "#0f1410",
+            "surface": "#161f18",
+            "surface_2": "#1b241d",
+            "surface_3": "#0c0f0d",
+            "surface_4": "#121916",
+            "border": "#253026",
+            "text_primary": "#f2fff5",
+            "text_secondary": "#a8b8aa",
+            "text_muted": "#8fa08f",
+            "accent": "#8bc34a",
+            "accent2": "#2f855a",
+            "accent3": "#e6b566",
+            "status_ok": "#8bc34a",
+            "status_warn": "#e6b566",
+            "status_bad": "#ff6b6b",
+            "status_idle": "#a8b8aa",
+        },
+        "Signal": {
+            "scheme": "dark2",
+            "mode": "dark",
+            "bg": "#0c1216",
+            "surface": "#141b20",
+            "surface_2": "#1a2228",
+            "surface_3": "#0a0f12",
+            "surface_4": "#10171c",
+            "border": "#22303a",
+            "text_primary": "#eaf2f7",
+            "text_secondary": "#96a5b3",
+            "text_muted": "#7f8f9f",
+            "accent": "#17c3b2",
+            "accent2": "#ffcb77",
+            "accent3": "#fe6d73",
+            "status_ok": "#17c3b2",
+            "status_warn": "#ffcb77",
+            "status_bad": "#fe6d73",
+            "status_idle": "#96a5b3",
+        },
+        "Circuit": {
+            "scheme": "turbo",
+            "mode": "dark",
+            "bg": "#0b1210",
+            "surface": "#141b18",
+            "surface_2": "#1a211e",
+            "surface_3": "#0a0e0c",
+            "surface_4": "#101613",
+            "border": "#212a25",
+            "text_primary": "#ecfdf5",
+            "text_secondary": "#9bb3a8",
+            "text_muted": "#7f948a",
+            "accent": "#00d1b2",
+            "accent2": "#3a86ff",
+            "accent3": "#ffbe0b",
+            "status_ok": "#00d1b2",
+            "status_warn": "#ffbe0b",
+            "status_bad": "#ff6b6b",
+            "status_idle": "#9bb3a8",
+        },
     }
+    theme_names = list(palette_options.keys()) + ["Custom"]
+    palette_param = st.query_params.get("palette")
+    if isinstance(palette_param, list):
+        palette_param = palette_param[0] if palette_param else None
     if "theme_name" not in st.session_state:
+        st.session_state.theme_name = palette_param if palette_param in theme_names else "Aurora"
+    if "custom_theme" not in st.session_state:
+        st.session_state.custom_theme = palette_options["Aurora"].copy()
+        st.session_state.custom_theme["scheme"] = "tableau10"
+        st.session_state.custom_theme["mode"] = "dark"
+    if st.session_state.theme_name not in theme_names:
         st.session_state.theme_name = "Aurora"
+    def persist_palette_choice():
+        selected = st.session_state.theme_name
+        current = st.query_params.get("palette")
+        if isinstance(current, list):
+            current = current[0] if current else None
+        if current != selected:
+            st.query_params["palette"] = selected
+
     theme_name = st.sidebar.selectbox(
         "Palette",
-        list(palette_options.keys()),
-        index=list(palette_options.keys()).index(st.session_state.theme_name),
+        theme_names,
+        index=theme_names.index(st.session_state.theme_name),
+        key="theme_name",
+        on_change=persist_palette_choice,
     )
-    st.session_state.theme_name = theme_name
-    theme = palette_options[theme_name]
-    accent_override = st.sidebar.color_picker("Accent color", value=theme["accent"])
-    theme["accent"] = accent_override
+    if theme_name == "Custom":
+        custom_theme = st.session_state.custom_theme
+        custom_theme["mode"] = st.sidebar.radio(
+            "Mode",
+            ["dark", "light"],
+            index=["dark", "light"].index(custom_theme.get("mode", "dark")),
+            horizontal=True,
+        )
+        custom_theme["bg"] = st.sidebar.color_picker("Background", value=custom_theme["bg"])
+        custom_theme["surface"] = st.sidebar.color_picker("Surface", value=custom_theme["surface"])
+        custom_theme["surface_2"] = st.sidebar.color_picker("Surface 2", value=custom_theme["surface_2"])
+        custom_theme["surface_3"] = st.sidebar.color_picker("Surface 3", value=custom_theme["surface_3"])
+        custom_theme["surface_4"] = st.sidebar.color_picker("Surface 4", value=custom_theme["surface_4"])
+        custom_theme["border"] = st.sidebar.color_picker("Border", value=custom_theme["border"])
+        custom_theme["text_primary"] = st.sidebar.color_picker("Text Primary", value=custom_theme["text_primary"])
+        custom_theme["text_secondary"] = st.sidebar.color_picker("Text Secondary", value=custom_theme["text_secondary"])
+        custom_theme["text_muted"] = st.sidebar.color_picker("Text Muted", value=custom_theme["text_muted"])
+        custom_theme["accent"] = st.sidebar.color_picker("Accent", value=custom_theme["accent"])
+        custom_theme["accent2"] = st.sidebar.color_picker("Accent 2", value=custom_theme["accent2"])
+        custom_theme["accent3"] = st.sidebar.color_picker("Accent 3", value=custom_theme["accent3"])
+        custom_theme["status_ok"] = st.sidebar.color_picker("Status OK", value=custom_theme["status_ok"])
+        custom_theme["status_warn"] = st.sidebar.color_picker("Status Warn", value=custom_theme["status_warn"])
+        custom_theme["status_bad"] = st.sidebar.color_picker("Status Bad", value=custom_theme["status_bad"])
+        custom_theme["status_idle"] = st.sidebar.color_picker("Status Idle", value=custom_theme["status_idle"])
+        custom_theme["scheme"] = st.sidebar.selectbox(
+            "Chart scheme",
+            ["tableau10", "viridis", "plasma", "magma", "inferno", "cividis", "set2", "set3", "dark2", "turbo"],
+            index=["tableau10", "viridis", "plasma", "magma", "inferno", "cividis", "set2", "set3", "dark2", "turbo"].index(
+                custom_theme.get("scheme", "tableau10")
+            ),
+        )
+        theme = custom_theme
+    else:
+        theme = palette_options[theme_name].copy()
+
     CHART_SCHEME = theme["scheme"]
     accent_soft = hex_to_rgba(theme["accent"], 0.18)
     accent_border = hex_to_rgba(theme["accent"], 0.55)
+    accent2_soft = hex_to_rgba(theme["accent2"], 0.18)
+    accent2_border = hex_to_rgba(theme["accent2"], 0.35)
+    accent2_glow = hex_to_rgba(theme["accent2"], 0.4)
+    accent3_soft = hex_to_rgba(theme["accent3"], 0.12)
+    accent3_border = hex_to_rgba(theme["accent3"], 0.35)
+    accent3_glow = hex_to_rgba(theme["accent3"], 0.6)
+    border_muted = hex_to_rgba(theme["border"], 0.55)
+    status_ok = theme["status_ok"]
+    status_warn = theme["status_warn"]
+    status_bad = theme["status_bad"]
+    status_idle = theme["status_idle"]
+    status_ok_border = hex_to_rgba(status_ok, 0.4)
+    status_warn_border = hex_to_rgba(status_warn, 0.45)
+    status_bad_border = hex_to_rgba(status_bad, 0.45)
+    status_bad_border_strong = hex_to_rgba(status_bad, 0.55)
+    status_idle_border = hex_to_rgba(status_idle, 0.35)
+    status_warn_soft = hex_to_rgba(status_warn, 0.08)
+    status_bad_soft = hex_to_rgba(status_bad, 0.08)
+    status_bad_strong = hex_to_rgba(status_bad, 0.14)
+    THEME_MODE = theme["mode"]
+    THEME_COLORS = {
+        "accent": theme["accent"],
+        "accent2": theme["accent2"],
+        "accent3": theme["accent3"],
+        "status_ok": status_ok,
+        "status_warn": status_warn,
+        "status_bad": status_bad,
+        "status_idle": status_idle,
+        "text_primary": theme["text_primary"],
+        "text_secondary": theme["text_secondary"],
+        "text_muted": theme["text_muted"],
+        "border": theme["border"],
+        "surface_3": theme["surface_3"],
+    }
+    CHART_LABEL_COLOR = theme["text_secondary"]
+    CHART_TITLE_COLOR = theme["text_primary"]
+    CHART_TEXT_COLOR = theme["text_secondary"]
+    CHART_GRID_COLOR = border_muted
+    GAUGE_COLORS = {
+        "temp": theme["accent2"],
+        "air_temp": theme["accent"],
+        "feels": theme["accent"],
+        "hum": theme["accent"],
+        "pressure": theme["accent3"],
+        "wind": theme["accent2"],
+        "gust": theme["accent3"],
+    }
+    COLLECTOR_COLORS = {
+        "airlink_collector": (theme["accent"], theme["accent2"]),
+        "tempest_collector": (theme["accent2"], theme["accent3"]),
+    }
+    WATCHDOG_COLORS = (status_warn, theme["accent3"])
     st.markdown(
         f"""
         <style>
         :root {{
+          --color-scheme: {theme['mode']};
+          --bg: {theme['bg']};
+          --surface: {theme['surface']};
+          --surface-2: {theme['surface_2']};
+          --surface-3: {theme['surface_3']};
+          --surface-4: {theme['surface_4']};
+          --border: {theme['border']};
+          --border-muted: {border_muted};
+          --text-primary: {theme['text_primary']};
+          --text-secondary: {theme['text_secondary']};
+          --text-muted: {theme['text_muted']};
+          --chart-text: {theme['text_secondary']};
+          --chart-title: {theme['text_primary']};
+          --chart-grid: {border_muted};
           --accent: {theme['accent']};
           --accent-2: {theme['accent2']};
           --accent-3: {theme['accent3']};
           --accent-soft: {accent_soft};
           --accent-border: {accent_border};
+          --accent-2-soft: {accent2_soft};
+          --accent-2-border: {accent2_border};
+          --accent-2-glow: {accent2_glow};
+          --accent-3-soft: {accent3_soft};
+          --accent-3-border: {accent3_border};
+          --accent-3-glow: {accent3_glow};
+          --status-ok: {status_ok};
+          --status-warn: {status_warn};
+          --status-bad: {status_bad};
+          --status-idle: {status_idle};
+          --status-ok-border: {status_ok_border};
+          --status-warn-border: {status_warn_border};
+          --status-bad-border: {status_bad_border};
+          --status-bad-border-strong: {status_bad_border_strong};
+          --status-idle-border: {status_idle_border};
+          --status-warn-soft: {status_warn_soft};
+          --status-bad-soft: {status_bad_soft};
+          --status-bad-strong: {status_bad_strong};
         }}
         </style>
         """,
@@ -2628,6 +3178,106 @@ with st.sidebar.expander("Location", expanded=False):
         )
         st.session_state.station_lat = station_lat
         st.session_state.station_lon = station_lon
+
+saved_alert_config, _ = load_alert_config(DB_PATH)
+saved_alert_email = saved_alert_config.get("alert_email_to", "")
+saved_alert_sms = saved_alert_config.get("alert_sms_to", "")
+if "alert_email_to" not in st.session_state:
+    st.session_state.alert_email_to = saved_alert_email or os.getenv("ALERT_EMAIL_TO", "")
+if "alert_sms_to" not in st.session_state:
+    st.session_state.alert_sms_to = saved_alert_sms or os.getenv("VERIZON_SMS_TO", "")
+if "smtp_username" not in st.session_state:
+    st.session_state.smtp_username = os.getenv("SMTP_USERNAME", "")
+if "smtp_password" not in st.session_state:
+    st.session_state.smtp_password = os.getenv("SMTP_PASSWORD") or ""
+if "smtp_from" not in st.session_state:
+    st.session_state.smtp_from = os.getenv("ALERT_EMAIL_FROM") or st.session_state.smtp_username
+
+with st.sidebar.expander("Alerts", expanded=False):
+    if ALERTS_WORKER_ENABLED:
+        st.caption("Background alert worker enabled; UI will not send alerts.")
+    alert_email_to = st.text_input(
+        "Alert recipient email",
+        value=st.session_state.alert_email_to,
+        help="Defaults to your Gmail address if left blank.",
+    )
+    alert_sms_to = st.text_input(
+        "Verizon SMS number",
+        value=st.session_state.alert_sms_to,
+        help="Digits only; leave blank to use VERIZON_SMS_TO from the environment.",
+    )
+    st.session_state.alert_email_to = alert_email_to.strip()
+    st.session_state.alert_sms_to = alert_sms_to.strip()
+    saved_bits = []
+    if saved_alert_email:
+        saved_bits.append(f"Email: {saved_alert_email}")
+    if saved_alert_sms:
+        saved_bits.append(f"SMS: {saved_alert_sms}")
+    if saved_bits:
+        st.caption("Saved recipients for worker: " + " | ".join(saved_bits))
+        st.caption("Stored in data/tempest.db (not committed).")
+    else:
+        st.caption("No saved recipients for the background worker yet.")
+    if st.button("Save recipients for worker"):
+        saved_keys, cleared_keys = save_alert_config(
+            DB_PATH,
+            {
+                "alert_email_to": st.session_state.alert_email_to,
+                "alert_sms_to": st.session_state.alert_sms_to,
+            },
+        )
+        if saved_keys:
+            st.success("Saved recipients for background alerts.")
+        elif cleared_keys:
+            st.success("Cleared saved recipients.")
+        else:
+            st.warning("Nothing to save yet.")
+    if saved_bits and st.button("Clear saved recipients"):
+        delete_alert_config(DB_PATH, ["alert_email_to", "alert_sms_to"])
+        st.success("Cleared saved recipients.")
+    st.markdown("---")
+    st.caption("Email auth (Gmail SMTP: smtp.gmail.com:587 TLS). Use a Gmail app password.")
+    smtp_username = st.text_input(
+        "Gmail address",
+        value=st.session_state.smtp_username,
+    )
+    smtp_password = st.text_input(
+        "Gmail app password",
+        value=st.session_state.smtp_password,
+        type="password",
+    )
+    st.caption("Password is stored only for this session.")
+    if smtp_password:
+        sanitized_password = re.sub(r"\\s+", "", smtp_password)
+        if sanitized_password != smtp_password:
+            st.caption("Removed spaces from the app password.")
+        smtp_password = sanitized_password
+    smtp_from = st.text_input(
+        "From address",
+        value=st.session_state.smtp_from,
+        help="Defaults to the Gmail address.",
+    )
+    st.session_state.smtp_username = smtp_username.strip()
+    st.session_state.smtp_password = smtp_password
+    st.session_state.smtp_from = smtp_from.strip()
+    if st.button("Send test alert"):
+        test_temp = st.session_state.get("latest_temp_for_alerts")
+        if test_temp is None:
+            test_temp = FREEZE_WARNING_F
+        now_value = st.session_state.get("latest_now_local")
+        if now_value is None:
+            now_value = pd.Timestamp.now(tz="UTC").tz_convert(LOCAL_TZ)
+        email_sent, sms_sent, email_error, sms_error = send_test_alerts(float(test_temp), now_value)
+        if email_sent or sms_sent:
+            st.success("Test alert sent.")
+        else:
+            st.warning("Test alert not sent.")
+        if email_error:
+            st.caption(f"Email: {email_error}")
+        if sms_error:
+            st.caption(f"SMS: {sms_error}")
+
+render_alert_overrides_sync()
 
 gauge_container = st.sidebar.container()
 
@@ -2791,6 +3441,7 @@ highlight_map = {
 }
 
 # Sidebar gauges using freshest data
+render_sidebar_clock(gauge_container)
 render_sidebar_gauges(
     gauge_container,
     tempest_latest=tempest_latest,
@@ -2813,9 +3464,9 @@ hub_activity = recent_activity(
 )
 
 for label, activity, colors in [
-    ("AirLink", airlink_activity, ("#4bd0c2", "#7be7d9")),
-    ("Tempest Station", station_activity, ("#59c5ff", "#8cc5ff")),
-    ("Tempest Hub", hub_activity, ("#9c7bff", "#d8c6ff")),
+    ("AirLink", airlink_activity, (THEME_COLORS["accent"], THEME_COLORS["accent2"])),
+    ("Tempest Station", station_activity, (THEME_COLORS["accent2"], THEME_COLORS["accent3"])),
+    ("Tempest Hub", hub_activity, (THEME_COLORS["accent3"], THEME_COLORS["accent"])),
 ]:
     latency_minutes = minutes_since_epoch(activity["last_epoch"], now_ts)
     # Hub pings are sparse; treat them as heartbeat instead of continuous flow.
@@ -2889,6 +3540,8 @@ if tempest is not None and not tempest.empty:
             current_uv = float(uv_nonzero.iloc[-1])
 
 now_local = pd.Timestamp.now(tz="UTC").tz_convert(LOCAL_TZ)
+st.session_state.latest_temp_for_alerts = current_temp
+st.session_state.latest_now_local = now_local
 sun_times = None
 sunrise_local = None
 sunset_local = None
@@ -2912,7 +3565,44 @@ wind_dir_text = current_wind_dir if current_wind_dir is not None else "--"
 wind_chip_text = f"{wind_dir_text} {current_wind_deg:.0f}°" if current_wind_deg is not None else wind_dir_text
 wind_speed_value = round(current_wind) if current_wind is not None else None
 wind_speed_text = f"{wind_speed_value:.0f} MPH" if wind_speed_value is not None else "-- MPH"
+aqi_value_text = f"{current_aqi:.0f}" if current_aqi is not None else "--"
+aqi_label_text = aqi_badge_label(current_aqi)
+aqi_color_value = aqi_color(current_aqi)
+aqi_tint = hex_to_rgba(aqi_color_value, 0.18)
+aqi_border = hex_to_rgba(aqi_color_value, 0.45)
+aqi_status_html = (
+    f"<span class=\"aqi-status\">{html_escape(aqi_label_text)}</span>"
+    if aqi_label_text != "--"
+    else ""
+)
+aqi_title = f"AQI {aqi_value_text} - {aqi_category(current_aqi)}"
 sun_chip_text = f"{fmt_time(sunrise_local)} · {fmt_time(sunset_local)}"
+
+alert_overrides = alert_overrides_from_session()
+alert_email_to, alert_sms_to = resolve_alert_recipients(DB_PATH, overrides=alert_overrides)
+alert_state = load_alert_state(DB_PATH)
+alerts_to_send, reset_updates = determine_freeze_alerts(current_temp, alert_state)
+if reset_updates:
+    save_alert_state(DB_PATH, reset_updates)
+alert_banner_html = build_freeze_banner(current_temp, now_local)
+if alerts_to_send and not ALERTS_WORKER_ENABLED:
+    temp_value = float(current_temp)
+    for alert in alerts_to_send:
+        message_body = build_freeze_alert_message(alert["title"], temp_value, now_local)
+        subject = f"{alert['title']} - Tempest {temp_value:.1f} F"
+        email_sent = send_email(
+            subject,
+            message_body,
+            to_address=alert_email_to,
+            overrides=alert_overrides,
+        )
+        sms_sent = send_verizon_sms(
+            message_body,
+            sms_number=alert_sms_to,
+            overrides=alert_overrides,
+        )
+        if email_sent or sms_sent:
+            save_alert_state(DB_PATH, alert["state_updates"])
 
 title_cols = st.columns([5, 1])
 with title_cols[0]:
@@ -2930,109 +3620,58 @@ with title_cols[0]:
               <span class="wind-dir">{wind_chip_text}</span>
               <span class="wind-speed">{wind_speed_text}</span>
             </div>
+            <div class="aqi-badge" style="--aqi-color: {aqi_color_value}; --aqi-tint: {aqi_tint}; --aqi-border: {aqi_border};" title="{html_escape(aqi_title)}">
+              <span class="aqi-dot"></span>
+              <span class="aqi-label">AQI</span>
+              <span class="aqi-value">{aqi_value_text}</span>
+              {aqi_status_html}
+            </div>
           </div>
+          {alert_banner_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
 with title_cols[1]:
-    components.html(
-        """
-        <script>
-        (function() {
-          const doc = window.parent && window.parent.document;
-          if (!doc) return;
+    clock_script = """
+    <script>
+    (function() {
+      const doc = window.parent && window.parent.document;
+      if (!doc) return;
 
-          const styleId = "dash-clock-style";
-          if (!doc.getElementById(styleId)) {
-            const style = doc.createElement("style");
-            style.id = styleId;
-            style.textContent = `
-              .dash-clock {
-                position: fixed;
-                left: 18px;
-                bottom: 18px;
-                z-index: 9999;
-                display: inline-block;
-                width: fit-content;
-                margin: 0;
-                text-align: left;
-                padding: 6px 10px;
-                border-radius: 12px;
-                border: 1px solid rgba(123,231,217,0.25);
-                background: rgba(13,16,22,0.7);
-                color: #f4f7ff;
-                font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-              }
-              .dash-clock .time {
-                font-size: 1.1rem;
-                font-weight: 700;
-              }
-              .dash-clock .date {
-                font-size: 0.78rem;
-                color: #9aa4b5;
-              }
-              @media (prefers-color-scheme: light) {
-                .dash-clock {
-                  background: #ffffff;
-                  color: #111827;
-                  border-color: #c9d4e6;
-                }
-                .dash-clock .date { color: #4b5563; }
-              }
-              .dash-clock.light {
-                background: #ffffff;
-                color: #111827;
-                border-color: #c9d4e6;
-              }
-              .dash-clock.light .date { color: #4b5563; }
-            `;
-            doc.head.appendChild(style);
-          }
+      const timeZone = __LOCAL_TZ__;
+      const locale = "en-US";
+      function updateClock() {
+        const timeEl = doc.querySelector("[data-clock-time]");
+        const dateEl = doc.querySelector("[data-clock-date]");
+        const fillEl = doc.querySelector("[data-clock-fill]");
+        if (!timeEl || !dateEl) return;
+        const now = new Date();
+        let timeText;
+        let dateText;
+        try {
+          timeText = now.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: timeZone });
+          dateText = now.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric", timeZone: timeZone });
+        } catch (err) {
+          timeText = now.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", second: "2-digit" });
+          dateText = now.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" });
+        }
+        if (timeEl) timeEl.textContent = timeText;
+        if (dateEl) dateEl.textContent = dateText;
+        if (fillEl) {
+          const seconds = now.getSeconds() + (now.getMilliseconds() / 1000);
+          fillEl.style.width = `${Math.round((seconds / 60) * 100)}%`;
+        }
+      }
 
-          let clock = doc.getElementById("dash-clock");
-          if (!clock) {
-            clock = doc.createElement("div");
-            clock.id = "dash-clock";
-            clock.className = "dash-clock";
-            clock.innerHTML = `
-              <div class="time" id="dash-clock-time">--:--</div>
-              <div class="date" id="dash-clock-date">--</div>
-            `;
-            doc.body.appendChild(clock);
-          }
-
-          function applyTheme() {
-            try {
-              const theme = doc.body.getAttribute("data-theme") || doc.documentElement.getAttribute("data-theme");
-              const lightClass = doc.body.classList.contains("theme-light");
-              if (theme === "light" || lightClass) {
-                clock.classList.add("light");
-              } else {
-                clock.classList.remove("light");
-              }
-            } catch (e) {}
-          }
-
-          const timeEl = doc.getElementById("dash-clock-time");
-          const dateEl = doc.getElementById("dash-clock-date");
-          function updateClock() {
-            const now = new Date();
-            const timeText = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
-            const dateText = now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-            if (timeEl) timeEl.textContent = timeText;
-            if (dateEl) dateEl.textContent = dateText;
-          }
-
-          updateClock();
-          applyTheme();
-          setInterval(applyTheme, 2000);
-          setInterval(updateClock, 1000);
-        })();
-        </script>
-        """,
-        height=0,
-    )
+      if (!window.parent.__tempestClockInterval) {
+        window.parent.__tempestClockInterval = window.parent.setInterval(updateClock, 1000);
+      }
+      updateClock();
+    })();
+    </script>
+    """
+    components.html(clock_script.replace("__LOCAL_TZ__", json.dumps(LOCAL_TZ)), height=0)
 dashboard_payload = {
     **overview_payload,
     **comparison_payload,
@@ -3190,18 +3829,18 @@ with tabs[0]:
                         )
                     )
                     avg_df = pd.DataFrame({"avg": [avg_val], "label": [f"Avg {avg_val:.0f}"]})
-                    avg_rule = alt.Chart(avg_df).mark_rule(color="#f2a85b", strokeDash=[4, 4]).encode(y="avg:Q")
+                    avg_rule = alt.Chart(avg_df).mark_rule(color=THEME_COLORS["accent3"], strokeDash=[4, 4]).encode(y="avg:Q")
                     avg_label = (
                         alt.Chart(avg_df)
-                        .mark_text(align="left", dx=6, dy=-6, color="#f2a85b")
+                        .mark_text(align="left", dx=6, dy=-6, color=THEME_COLORS["accent3"])
                         .encode(y="avg:Q", text="label:N")
                     )
                     layered = (
                         alt.layer(base_chart, avg_rule, avg_label)
                         .properties(height=220)
-                        .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
-                        .configure_legend(labelColor="#cfd6e5", titleColor="#cfd6e5")
-                        .configure_title(color="#cfd6e5")
+                        .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
+                        .configure_legend(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR)
+                        .configure_title(color=CHART_TITLE_COLOR)
                         .interactive()
                     )
                     st.altair_chart(layered, width="stretch")
@@ -3320,8 +3959,8 @@ if not fast_view:
                     )
                         .properties(height=220)
                         .interactive()
-                        .configure_axis(labelColor="#cfd6e5", titleColor="#cfd6e5", gridColor="#1f252f")
-                        .configure_title(color="#cfd6e5")
+                        .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
+                        .configure_title(color=CHART_TITLE_COLOR)
                     )
                     st.markdown(
                         "<div class='chart-header'>Rain Accumulation"
@@ -3349,7 +3988,7 @@ if not fast_view:
                         "<span class='info-icon' title='Dominant wind directions during the window.'>i</span></div>",
                         unsafe_allow_html=True,
                     )
-                    st.altair_chart(bar_chart(dir_counts, height=200, title=None, color="#61a5ff"), width="stretch")
+                    st.altair_chart(bar_chart(dir_counts, height=200, title=None, color=THEME_COLORS["accent2"]), width="stretch")
 
                 chart_specs.append({"key": "wind_dir", "label": "Wind Direction Frequency", "render": render_wind_dir})
 
@@ -3454,6 +4093,21 @@ if not fast_view:
                 on="time",
                 direction="nearest",
             )
+            if "temp_f" in merged:
+                temp_compare = merged[["time", "air_temperature_f", "temp_f"]].rename(
+                    columns={"air_temperature_f": "Tempest", "temp_f": "AirLink"}
+                )
+                temp_long = temp_compare.melt(id_vars=["time"], var_name="metric", value_name="value").dropna(subset=["value"])
+                if not temp_long.empty:
+                    st.markdown(
+                        "<div class='chart-header'>Tempest vs AirLink Temp"
+                        "<span class='info-icon' title='Overlay of roof (Tempest) and AirLink temperature readings.'>i</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.altair_chart(
+                        clean_chart(temp_long, height=260, title=None),
+                        width="stretch",
+                    )
             scatter = merged[["wind_speed_mph", "aqi_pm25"]].dropna()
             if not scatter.empty:
                 chart = (
@@ -3495,7 +4149,7 @@ if not fast_view:
                 comfort["comfort"] = comfort.apply(comfort_bucket, axis=1)
                 comfort_chart = (
                     alt.Chart(comfort)
-                    .mark_circle(size=50, color="#61a5ff")
+                    .mark_circle(size=50, color=THEME_COLORS["accent2"])
                     .encode(
                         x=alt.X("air_temperature_f", title="Temp (F)"),
                         y=alt.Y("relative_humidity", title="Humidity (%)"),
@@ -3503,7 +4157,12 @@ if not fast_view:
                         "comfort:N",
                         scale=alt.Scale(
                             domain=["Comfortable", "Dry", "Humid", "Hot"],
-                            range=["#7be7d9", "#61a5ff", "#f2a85b", "#ef565f"],
+                            range=[
+                                THEME_COLORS["status_ok"],
+                                THEME_COLORS["accent2"],
+                                THEME_COLORS["accent3"],
+                                THEME_COLORS["status_bad"],
+                            ],
                         ),
                         legend=alt.Legend(title="Comfort"),
                     ),
@@ -3523,7 +4182,7 @@ if not fast_view:
     with tabs[3]:
         st.subheader("Raw")
         storage = get_storage_stats()
-        total_size = storage["db_size"] + storage["assets_size"]
+        total_size = storage["db_size"]
         st.markdown(
             f"""
             <div class="gauge-block">
@@ -3532,7 +4191,7 @@ if not fast_view:
                 <div>{fmt_bytes(total_size)} total</div>
               </div>
               <div class="gauge-muted">
-                Database: {fmt_bytes(storage["db_size"])} · Assets: {fmt_bytes(storage["assets_size"])}
+                Database: {fmt_bytes(storage["db_size"])}
               </div>
               <div class="gauge-muted">
                 Rows stored: {storage["total_rows"]:,} · Measurements: {storage["measurements"]:,}
