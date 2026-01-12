@@ -40,6 +40,7 @@ WATCHDOG_COLORS = ("#f4b860", "#ffd59a")
 
 CHART_SCHEME = "tableau10"
 LOCAL_TZ = "America/New_York"
+AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "60"))
 
 def resolve_table(candidates):
     try:
@@ -72,55 +73,66 @@ st.set_page_config(
 )
 
 # ------------------------
-# Local UI state (tabs/scroll)
+# Local UI state (tabs/scroll/refresh)
 # ------------------------
+refresh_ms = AUTO_REFRESH_SECONDS * 1000
+state_script = """
+<script>
+(function() {
+  const storage = window.parent.localStorage || window.localStorage;
+  const TAB_KEY = "tempest:last_tab";
+  const SCROLL_KEY = "tempest:last_scroll";
+  const refreshMs = __REFRESH_MS__;
+  if (!window.parent.__tempestRefreshSet) {
+    window.parent.__tempestRefreshSet = true;
+    window.parent.setInterval(() => {
+      const doc = window.parent.document;
+      if (doc && doc.hidden) return;
+      window.parent.location.reload();
+    }, refreshMs);
+  }
+  function tabButtons() {
+    return Array.from(window.parent.document.querySelectorAll('button[role="tab"]'));
+  }
+  function activeTabLabel() {
+    const tabs = tabButtons();
+    const active = tabs.find((btn) => btn.getAttribute("aria-selected") === "true");
+    return active ? active.textContent.trim() : "";
+  }
+  function attachTabHandlers() {
+    const tabs = tabButtons();
+    if (!tabs.length) return false;
+    const active = activeTabLabel();
+    if (active) storage.setItem(TAB_KEY, active);
+    tabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        storage.setItem(TAB_KEY, btn.textContent.trim());
+      });
+    });
+    return true;
+  }
+  let tries = 0;
+  const timer = window.parent.setInterval(() => {
+    tries += 1;
+    attachTabHandlers();
+    if (tries > 12) {
+      window.parent.clearInterval(timer);
+    }
+  }, 300);
+  window.parent.addEventListener("beforeunload", () => {
+    storage.setItem(SCROLL_KEY, String(window.parent.scrollY || 0));
+  });
+  window.parent.addEventListener("load", () => {
+    const y = parseInt(storage.getItem(SCROLL_KEY) || "0", 10);
+    if (y) {
+      window.parent.setTimeout(() => window.parent.scrollTo(0, y), 200);
+    }
+  });
+})();
+</script>
+"""
 components.html(
-    """
-    <script>
-    (function() {
-      const storage = window.parent.localStorage || window.localStorage;
-      const TAB_KEY = "tempest:last_tab";
-      const SCROLL_KEY = "tempest:last_scroll";
-      function tabButtons() {
-        return Array.from(window.parent.document.querySelectorAll('button[role="tab"]'));
-      }
-      function activeTabLabel() {
-        const tabs = tabButtons();
-        const active = tabs.find((btn) => btn.getAttribute("aria-selected") === "true");
-        return active ? active.textContent.trim() : "";
-      }
-      function attachTabHandlers() {
-        const tabs = tabButtons();
-        if (!tabs.length) return false;
-        const active = activeTabLabel();
-        if (active) storage.setItem(TAB_KEY, active);
-        tabs.forEach((btn) => {
-          btn.addEventListener("click", () => {
-            storage.setItem(TAB_KEY, btn.textContent.trim());
-          });
-        });
-        return true;
-      }
-      let tries = 0;
-      const timer = window.parent.setInterval(() => {
-        tries += 1;
-        attachTabHandlers();
-        if (tries > 12) {
-          window.parent.clearInterval(timer);
-        }
-      }, 300);
-      window.parent.addEventListener("beforeunload", () => {
-        storage.setItem(SCROLL_KEY, String(window.parent.scrollY || 0));
-      });
-      window.parent.addEventListener("load", () => {
-        const y = parseInt(storage.getItem(SCROLL_KEY) || "0", 10);
-        if (y) {
-          window.parent.setTimeout(() => window.parent.scrollTo(0, y), 200);
-        }
-      });
-    })();
-    </script>
-    """,
+    state_script.replace("__REFRESH_MS__", str(refresh_ms)),
     height=0,
 )
 
@@ -449,14 +461,15 @@ st.markdown(
     .wind-flag {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         padding: 4px 10px;
         border-radius: 999px;
-        border: 1px solid rgba(97,165,255,0.35);
-        background: rgba(97,165,255,0.12);
+        border: 1px solid rgba(97,165,255,0.45);
+        background: linear-gradient(135deg, rgba(97,165,255,0.24), rgba(12,16,24,0.9));
         color: #dbe7ff;
         font-weight: 600;
         font-size: 0.82rem;
+        box-shadow: 0 10px 22px rgba(97,165,255,0.22);
     }
     .wind-flag .arrow {
         display: inline-flex;
@@ -465,10 +478,26 @@ st.markdown(
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.28);
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), rgba(97,165,255,0.2));
+        box-shadow: 0 0 12px rgba(97,165,255,0.6);
         color: #f4f7ff;
         font-size: 0.7rem;
         transform: rotate(0deg);
+    }
+    .wind-flag .wind-dir {
+        font-weight: 700;
+        letter-spacing: 0.3px;
+    }
+    .wind-flag .wind-speed {
+        padding: 2px 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(12,16,24,0.45);
+        color: #f6fbff;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.4px;
     }
     .overview-actions {
         display: flex;
@@ -493,6 +522,9 @@ st.markdown(
     .header-badges .sun-badge {
         font-size: 0.75rem;
         padding: 4px 8px;
+    }
+    .header-badges .wind-flag .wind-speed {
+        font-size: 0.66rem;
     }
     .sun-badge {
         display: inline-flex;
@@ -716,6 +748,18 @@ st.markdown(
         color: #1f2a44;
         border-color: rgba(37,99,235,0.25);
     }
+    body[data-theme="light"] .wind-flag .wind-speed,
+    .stApp[data-theme="light"] .wind-flag .wind-speed {
+        background: rgba(37,99,235,0.1);
+        border-color: rgba(37,99,235,0.3);
+        color: #1f2a44;
+    }
+    body.theme-light .wind-flag .wind-speed,
+    .stApp.theme-light .wind-flag .wind-speed {
+        background: rgba(37,99,235,0.1);
+        border-color: rgba(37,99,235,0.3);
+        color: #1f2a44;
+    }
     body.theme-light .sun-badge,
     .stApp.theme-light .sun-badge {
         background: rgba(242,168,91,0.15);
@@ -723,9 +767,19 @@ st.markdown(
         border-color: rgba(242,168,91,0.35);
     }
     body[data-theme="light"] .wind-flag .arrow,
-    .stApp[data-theme="light"] .wind-flag .arrow { color: #1f2a44; }
+    .stApp[data-theme="light"] .wind-flag .arrow {
+        color: #1f2a44;
+        border-color: rgba(37,99,235,0.25);
+        background: rgba(37,99,235,0.12);
+        box-shadow: none;
+    }
     body.theme-light .wind-flag .arrow,
-    .stApp.theme-light .wind-flag .arrow { color: #1f2a44; }
+    .stApp.theme-light .wind-flag .arrow {
+        color: #1f2a44;
+        border-color: rgba(37,99,235,0.25);
+        background: rgba(37,99,235,0.12);
+        box-shadow: none;
+    }
     body[data-theme="light"] .gauge-block,
     .stApp[data-theme="light"] .gauge-block {
         background: #ffffff;
@@ -944,12 +998,16 @@ st.markdown(
         color: #cfd6e5;
         font-size: 0.9rem;
     }
-    .ingest-badge {
-        padding: 6px 10px;
-        border-radius: 10px;
-        border: 1px solid rgba(97,165,255,0.3);
-        background: rgba(97,165,255,0.14);
-        color: #e9f1ff;
+    .ingest-events {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        color: #dbe7ff;
+        font-weight: 600;
+    }
+    .ingest-events span {
+        color: #9aa4b5;
         font-weight: 700;
     }
     .ingest-grid {
@@ -1788,33 +1846,26 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
         }
         for s in sources
     ]
-    overall = "ok" if all(s["status"] in ("ok", "standby") for s in statuses) else "warn"
-    header_title = "Signals healthy" if overall == "ok" else "Signals need attention"
+    def needs_attention(item):
+        if item["name"] == "Tempest Hub":
+            return item["status"] == "offline"
+        return item["status"] in ("warn", "offline")
+
+    overall = "warn" if any(needs_attention(s) for s in statuses) else "ok"
+    header_title = "Signals steady" if overall == "ok" else "Signals monitoring"
     badge_text = f"{total_recent} events/hr" if total_recent else "No recent events"
     if avg_latency_text:
         badge_text = f"{badge_text} - avg data age {avg_latency_text}"
+    events_html = (
+        f"<div class=\"ingest-help ingest-events\">{html_escape(badge_text)} "
+        "<span title='Avg data age reflects how long ago each source last reported.'>(i)</span></div>"
+    )
 
     summary_html = "".join(
         indicator_chip(s["name"], s["status"], s["colors"])
         for s in statuses
     )
-
-
-    details_html = "".join(
-        f"""<div class="ingest-detail-row">
-  <div class="meta">
-    <span class="ingest-dot" style="background:{s['colors'][0]};"></span>
-    <span>{html_escape(s['name'])}</span>
-    <span class="ingest-pill {s['status']}">{html_escape(status_labels[s['status']])}</span>
-  </div>
-  <div class="detail">{html_escape(s['latency_text'])} - {html_escape(s['load_text'])}</div>
-  <div class="last">{html_escape(s['last_seen'])}</div>
-</div>"""
-        for s in statuses
-    )
     collector_section_html = ""
-    collector_summary_html = ""
-    collector_detail_html = ""
     if collector_statuses:
         collector_summary_html = "".join(
             indicator_chip(
@@ -1827,12 +1878,15 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
             )
             for s in collector_statuses
         )
-        snapshot_text = " | ".join(
-            s["snapshot_text"] for s in collector_statuses if s.get("snapshot_text")
-        )
+        snapshot_items = [
+            s["snapshot_text"]
+            for s in collector_statuses
+            if s.get("snapshot_text")
+        ]
+        snapshot_html = "<br>".join(html_escape(item) for item in snapshot_items)
         snapshot_line = (
-            f"<div class=\"ingest-snapshot\">Health snapshot: {html_escape(snapshot_text)}</div>"
-            if snapshot_text
+            f"<div class=\"ingest-snapshot\">{snapshot_html}</div>"
+            if snapshot_items
             else ""
         )
         collector_section_html = "\n".join(
@@ -1845,21 +1899,10 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
                 "</div>",
             ]
         )
-        collector_detail_html = "".join(
-            f"""<div class="{collector_row_class(s['status'], s.get('error_recent'))}">
-  <div class="meta">
-    <span class="ingest-dot" style="background:{s['colors'][0]};"></span>
-    <span>{html_escape(s['name'])}</span>
-    <span class="ingest-pill {s['status']}">{html_escape(s.get('pill_text') or status_labels.get(s['status'], 'Live'))}</span>
-  </div>
-  <div class="detail">{html_escape(s['latency_text'])}</div>
-  <div class="last">{html_escape(s['error_text'])}</div>
-</div>"""
-            for s in collector_statuses
-        )
 
 
-    st.sidebar.subheader("Connection settings")
+    # Sidebar connection summary and diagnostics.
+    st.sidebar.subheader("Connection")
     with st.sidebar.container():
         def ping_device(host):
             if not host:
@@ -1876,17 +1919,15 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
             except Exception:
                 return False, "Ping failed"
 
-        header_cols = st.columns([1.4, 0.8])
-        with header_cols[0]:
-            hub_uptime_text = fmt_duration((time.time() - hub_activity["last_epoch"]) if hub_activity.get("last_epoch") else None)
-            st.markdown(
-                f"""
+        hub_uptime_text = fmt_duration((time.time() - hub_activity["last_epoch"]) if hub_activity.get("last_epoch") else None)
+        st.markdown(
+            f"""
 <div class="ingest-shell hero-glow">
   <div class="ingest-header-row">
     <div>
-      <div class="ingest-eyebrow">Connection status</div>
+      <div class="ingest-eyebrow">Signals</div>
       <div class="ingest-summary">{header_title}</div>
-      <div class="ingest-help">Avg data age is the mean time since last packets across sources.</div>
+      {events_html}
       <div class="ingest-help">Hub uptime: {hub_uptime_text}</div>
       <div class="ingest-status-row">
         {summary_html}
@@ -1895,45 +1936,36 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
     </div>
   </div>
 </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            with header_cols[1]:
-                st.markdown(
-                    f"<div class='ingest-badge'>{html_escape(badge_text)} <span title='Avg data age reflects how long ago each source last reported.'>(i)</span></div>",
-                    unsafe_allow_html=True,
-                )
-                for src in statuses:
-                    target = PING_TARGETS.get(src["name"]) or (PING_TARGETS.get("Tempest Hub") if src["name"] == "Tempest Station" else None)
-                    disabled = not target
-                    if st.button(f"Ping {src['name']}", key=f"ping_{src['name']}", disabled=disabled):
-                        ok, msg = ping_device(target)
-                        st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
-                    result = st.session_state.ping_results.get(src["name"])
-                    if result and time.time() - result[2] < 6:
-                        ok, msg, _ = result
-                        status_label = "OK" if ok else "WARN"
-                        st.markdown(
-                            f"<div class='ping-toast'>{status_label}: {src['name']} - {msg}</div>",
-                            unsafe_allow_html=True,
-                        )
-                    elif disabled:
-                        st.markdown("<div class='ingest-help'>Set ping target in PING_TARGETS.</div>", unsafe_allow_html=True)
-
-            # Detail blocks (no extra ping buttons inside)
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div class='metric-expanders'>", unsafe_allow_html=True)
+        with st.expander("Diagnostics", expanded=False):
+            st.caption("Ping checks local network reachability for each source.")
+            has_targets = False
             for src in statuses:
-                expander_title = f"{src['name']} — {status_labels[src['status']]}"
-                with st.expander(expander_title, expanded=False):
-                    st.markdown(f"**Status:** {status_labels[src['status']]}")
-                    st.markdown(f"**Latency/Load:** {src['latency_text']} - {src['load_text']}")
-                    st.markdown(f"**Last seen:** {src['last_seen']}")
-
-            if collector_statuses:
-                with st.expander("Collector details", expanded=False):
+                target = PING_TARGETS.get(src["name"]) or (
+                    PING_TARGETS.get("Tempest Hub") if src["name"] == "Tempest Station" else None
+                )
+                if target:
+                    has_targets = True
+                disabled = not target
+                if st.button(f"Ping {src['name']}", key=f"ping_{src['name']}", disabled=disabled):
+                    ok, msg = ping_device(target)
+                    st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
+                result = st.session_state.ping_results.get(src["name"])
+                if result and time.time() - result[2] < 6:
+                    ok, msg, _ = result
+                    status_label = "OK" if ok else "WARN"
                     st.markdown(
-                        f"<div class='ingest-details'>{collector_detail_html}</div>",
+                        f"<div class='ping-toast'>{status_label}: {src['name']} - {msg}</div>",
                         unsafe_allow_html=True,
                     )
+            if not has_targets:
+                st.caption("Set ping targets in PING_TARGETS to enable diagnostics.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 
 def daily_extremes(df, time_col, value_cols):
     if df is None or df.empty:
@@ -2474,17 +2506,13 @@ until_epoch = None
 window_desc = "this window"
 
 if filter_mode == "Window (hours)":
-    preset_defs = [(6, "6h"), (12, "12h"), (24, "24h"), (168, "7d"), ("all", "All")]
+    preset_defs = [(6, "6h"), (12, "12h"), (24, "24h"), (168, "7d")]
     preset_cols = st.sidebar.columns(len(preset_defs))
     for col, val, label in zip(preset_cols, [p[0] for p in preset_defs], [p[1] for p in preset_defs]):
         if col.button(label):
-            if val == "all":
-                filter_mode = "All time"
-                st.session_state.filter_mode = filter_mode
-            else:
-                st.session_state.hours = val
-                filter_mode = "Window (hours)"
-                st.session_state.filter_mode = filter_mode
+            st.session_state.hours = val
+            filter_mode = "Window (hours)"
+            st.session_state.filter_mode = filter_mode
 
     if filter_mode == "Window (hours)":
         st.session_state.hours = st.sidebar.slider(
@@ -2526,80 +2554,80 @@ else:
     since_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=st.session_state.hours)).timestamp())
     window_desc = f"the last {st.session_state.hours}h"
 
-st.sidebar.subheader("Theme")
-palette_options = {
-    "Aurora": {"scheme": "viridis", "accent": "#7be7d9", "accent2": "#61a5ff", "accent3": "#f2a85b"},
-    "Solstice": {"scheme": "plasma", "accent": "#ffcc66", "accent2": "#ff8a5c", "accent3": "#6f79ff"},
-    "Monsoon": {"scheme": "magma", "accent": "#5eead4", "accent2": "#38bdf8", "accent3": "#f472b6"},
-    "Ember": {"scheme": "inferno", "accent": "#f97316", "accent2": "#f43f5e", "accent3": "#facc15"},
-}
-if "theme_name" not in st.session_state:
-    st.session_state.theme_name = "Aurora"
-theme_name = st.sidebar.selectbox(
-    "Palette",
-    list(palette_options.keys()),
-    index=list(palette_options.keys()).index(st.session_state.theme_name),
-)
-st.session_state.theme_name = theme_name
-theme = palette_options[theme_name]
-accent_override = st.sidebar.color_picker("Accent color", value=theme["accent"])
-theme["accent"] = accent_override
-CHART_SCHEME = theme["scheme"]
-accent_soft = hex_to_rgba(theme["accent"], 0.18)
-accent_border = hex_to_rgba(theme["accent"], 0.55)
-st.markdown(
-    f"""
-    <style>
-    :root {{
-      --accent: {theme['accent']};
-      --accent-2: {theme['accent2']};
-      --accent-3: {theme['accent3']};
-      --accent-soft: {accent_soft};
-      --accent-border: {accent_border};
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.sidebar.subheader("Location")
-if "station_lat" not in st.session_state:
-    st.session_state.station_lat = 0.0
-if "station_lon" not in st.session_state:
-    st.session_state.station_lon = 0.0
-
-tempest_token = os.getenv("TEMPEST_API_TOKEN")
-auto_location = fetch_station_location(tempest_token, TEMPEST_STATION_ID) if tempest_token else None
-if auto_location and auto_location.get("lat") is not None and auto_location.get("lon") is not None:
-    if st.session_state.station_lat in (0.0, None):
-        st.session_state.station_lat = float(auto_location["lat"])
-    if st.session_state.station_lon in (0.0, None):
-        st.session_state.station_lon = float(auto_location["lon"])
-    st.sidebar.caption(
-        f"Using Tempest station: {auto_location.get('name', 'Tempest Station')} "
-        f"({st.session_state.station_lat:.4f}, {st.session_state.station_lon:.4f})"
+with st.sidebar.expander("Theme", expanded=False):
+    palette_options = {
+        "Aurora": {"scheme": "viridis", "accent": "#7be7d9", "accent2": "#61a5ff", "accent3": "#f2a85b"},
+        "Solstice": {"scheme": "plasma", "accent": "#ffcc66", "accent2": "#ff8a5c", "accent3": "#6f79ff"},
+        "Monsoon": {"scheme": "magma", "accent": "#5eead4", "accent2": "#38bdf8", "accent3": "#f472b6"},
+        "Ember": {"scheme": "inferno", "accent": "#f97316", "accent2": "#f43f5e", "accent3": "#facc15"},
+    }
+    if "theme_name" not in st.session_state:
+        st.session_state.theme_name = "Aurora"
+    theme_name = st.sidebar.selectbox(
+        "Palette",
+        list(palette_options.keys()),
+        index=list(palette_options.keys()).index(st.session_state.theme_name),
+    )
+    st.session_state.theme_name = theme_name
+    theme = palette_options[theme_name]
+    accent_override = st.sidebar.color_picker("Accent color", value=theme["accent"])
+    theme["accent"] = accent_override
+    CHART_SCHEME = theme["scheme"]
+    accent_soft = hex_to_rgba(theme["accent"], 0.18)
+    accent_border = hex_to_rgba(theme["accent"], 0.55)
+    st.markdown(
+        f"""
+        <style>
+        :root {{
+          --accent: {theme['accent']};
+          --accent-2: {theme['accent2']};
+          --accent-3: {theme['accent3']};
+          --accent-soft: {accent_soft};
+          --accent-border: {accent_border};
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
-override_location = st.sidebar.checkbox("Override location", value=False)
-if override_location or not auto_location:
-    station_lat = st.sidebar.number_input(
-        "Latitude",
-        min_value=-90.0,
-        max_value=90.0,
-        value=float(st.session_state.station_lat),
-        format="%.4f",
-        help="Used for sunrise/sunset times.",
-    )
-    station_lon = st.sidebar.number_input(
-        "Longitude",
-        min_value=-180.0,
-        max_value=180.0,
-        value=float(st.session_state.station_lon),
-        format="%.4f",
-        help="Used for sunrise/sunset times.",
-    )
-    st.session_state.station_lat = station_lat
-    st.session_state.station_lon = station_lon
+with st.sidebar.expander("Location", expanded=False):
+    if "station_lat" not in st.session_state:
+        st.session_state.station_lat = 0.0
+    if "station_lon" not in st.session_state:
+        st.session_state.station_lon = 0.0
+
+    tempest_token = os.getenv("TEMPEST_API_TOKEN")
+    auto_location = fetch_station_location(tempest_token, TEMPEST_STATION_ID) if tempest_token else None
+    if auto_location and auto_location.get("lat") is not None and auto_location.get("lon") is not None:
+        if st.session_state.station_lat in (0.0, None):
+            st.session_state.station_lat = float(auto_location["lat"])
+        if st.session_state.station_lon in (0.0, None):
+            st.session_state.station_lon = float(auto_location["lon"])
+        st.sidebar.caption(
+            f"Using Tempest station: {auto_location.get('name', 'Tempest Station')} "
+            f"({st.session_state.station_lat:.4f}, {st.session_state.station_lon:.4f})"
+        )
+
+    override_location = st.sidebar.checkbox("Override location", value=False)
+    if override_location or not auto_location:
+        station_lat = st.sidebar.number_input(
+            "Latitude",
+            min_value=-90.0,
+            max_value=90.0,
+            value=float(st.session_state.station_lat),
+            format="%.4f",
+            help="Used for sunrise/sunset times.",
+        )
+        station_lon = st.sidebar.number_input(
+            "Longitude",
+            min_value=-180.0,
+            max_value=180.0,
+            value=float(st.session_state.station_lon),
+            format="%.4f",
+            help="Used for sunrise/sunset times.",
+        )
+        st.session_state.station_lat = station_lat
+        st.session_state.station_lon = station_lon
 
 gauge_container = st.sidebar.container()
 
@@ -2881,7 +2909,9 @@ if sunrise_local and sunset_local:
     is_daytime = sunrise_local <= now_local <= sunset_local
 wind_angle = current_wind_deg if current_wind_deg is not None else 0
 wind_dir_text = current_wind_dir if current_wind_dir is not None else "--"
-wind_chip_text = f"{wind_dir_text} {current_wind_deg:.0f}°" if current_wind_deg is not None else "--"
+wind_chip_text = f"{wind_dir_text} {current_wind_deg:.0f}°" if current_wind_deg is not None else wind_dir_text
+wind_speed_value = round(current_wind) if current_wind is not None else None
+wind_speed_text = f"{wind_speed_value:.0f} MPH" if wind_speed_value is not None else "-- MPH"
 sun_chip_text = f"{fmt_time(sunrise_local)} · {fmt_time(sunset_local)}"
 
 title_cols = st.columns([5, 1])
@@ -2897,7 +2927,8 @@ with title_cols[0]:
             </div>
             <div class="wind-flag">
               <span class="arrow" style="transform: rotate({wind_angle}deg);">^</span>
-              <span>{wind_chip_text}</span>
+              <span class="wind-dir">{wind_chip_text}</span>
+              <span class="wind-speed">{wind_speed_text}</span>
             </div>
           </div>
         </div>
