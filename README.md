@@ -79,6 +79,14 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
    ```powershell
    .\scripts\uninstall_services.ps1
    ```
+5) Convenience commands (run as Administrator for start/stop/restart/install):
+   ```powershell
+   .\scripts\services.ps1 status
+   .\scripts\services.ps1 start
+   .\scripts\services.ps1 restart -Target alerts
+   .\scripts\services.ps1 logs -Target ui -LogLines 200
+   .\scripts\services.ps1 env
+   ```
 
 Services installed by the script:
 - `TempestWeatherUI` (Streamlit dashboard on port 8501)
