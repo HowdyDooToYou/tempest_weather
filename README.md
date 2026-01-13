@@ -87,6 +87,10 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
    .\scripts\services.ps1 logs -Target ui -LogLines 200
    .\scripts\services.ps1 env
    ```
+   Or use the interactive menu:
+   ```powershell
+   .\scripts\services_menu.ps1
+   ```
 
 Services installed by the script:
 - `TempestWeatherUI` (Streamlit dashboard on port 8501)
