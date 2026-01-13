@@ -39,6 +39,7 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
    .\scripts\run_streamlit.ps1
    ```
    The script loads `.env` into the current shell and does not overwrite existing env vars unless `-OverrideEnv` is used.
+   For services, skip `.env` and set environment variables via NSSM or System Environment.
 
 ## Configuration
 - `TEMPEST_API_TOKEN`: optional, for auto-location.
@@ -69,6 +70,7 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 ## Run as a Windows service (NSSM)
 1) Install NSSM (for example: `choco install nssm`).
 2) Configure environment variables for services (Windows System Environment or NSSM Environment tab).
+   The installer reads from the current shell and writes them into `AppEnvironmentExtra`.
 3) Run:
    ```powershell
    .\scripts\install_services.ps1
