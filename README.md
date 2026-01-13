@@ -33,6 +33,12 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
    ```bash
    streamlit run dashboard.py
    ```
+4) Optional: create `.env` from `.env.example` and run the convenience script:
+   ```powershell
+   copy .env.example .env
+   .\scripts\run_streamlit.ps1
+   ```
+   The script loads `.env` into the current shell and does not overwrite existing env vars unless `-OverrideEnv` is used.
 
 ## Configuration
 - `TEMPEST_API_TOKEN`: optional, for auto-location.

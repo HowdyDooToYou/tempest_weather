@@ -11,3 +11,22 @@ logs/*.log
 
 # Secrets
 .env
+
+# NSSM binaries
+nssm-*/
+nssm-*.zip
+nssm.exe
+
+# Installers / archives / binaries
+*.exe
+*.msi
+*.msix
+*.zip
+*.7z
+*.tar
+*.gz
+*.tgz
+*.rar
+*.whl
+*.dll
+*.pdb
