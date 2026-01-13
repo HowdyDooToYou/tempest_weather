@@ -44,10 +44,18 @@ $additionalEnvNames = @(
     "SMTP_USERNAME",
     "SMTP_PASSWORD",
     "ALERT_EMAIL_FROM",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USE_TLS",
+    "SMTP_USE_SSL",
     "ALERT_EMAIL_TO",
     "VERIZON_SMS_TO",
+    "FREEZE_WARNING_F",
+    "DEEP_FREEZE_F",
+    "FREEZE_RESET_F",
     "LOCAL_TZ",
     "TEMPEST_DB_PATH",
+    "TEMPEST_API_TOKEN",
     "ALERT_WORKER_INTERVAL_SECONDS"
 )
 $sharedEnvLines = @()

@@ -85,6 +85,15 @@ Services installed by the script:
 - `TempestWeatherAlerts` (background alerts worker)
 The install script sets `ALERTS_WORKER_ENABLED=1` for the UI service to avoid duplicate alerts.
 
+Service env checklist (NSSM/System):
+- Required: `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM`
+- Recipients: `ALERT_EMAIL_TO` and `VERIZON_SMS_TO` (optional if saved via Controls -> Alerts)
+- Transport: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_TLS`, `SMTP_USE_SSL` (set one true)
+- Alerts: `FREEZE_WARNING_F`, `DEEP_FREEZE_F`, `FREEZE_RESET_F` (optional)
+- Optional: `LOCAL_TZ`, `TEMPEST_DB_PATH`, `TEMPEST_API_TOKEN`
+- Alerts worker: `ALERT_WORKER_INTERVAL_SECONDS` (service only)
+- UI service: `ALERTS_WORKER_ENABLED=1` (set by installer)
+
 ## Usage notes
 - In Overview, toggle metrics via the accordion; charts for selected metrics render below.
 - In Trends, reorder or hide charts with the chart order multiselect.
