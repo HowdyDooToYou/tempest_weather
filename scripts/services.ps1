@@ -11,11 +11,26 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $nssm = $NssmPath
 if (-not (Test-Path $nssm)) {
     $cmd = Get-Command $nssm -ErrorAction SilentlyContinue
-    if (-not $cmd) {
-        Write-Error "nssm.exe not found. Install NSSM or pass -NssmPath."
-        exit 1
+    if ($cmd) {
+        $nssm = $cmd.Source
     }
-    $nssm = $cmd.Source
+}
+if (-not (Test-Path $nssm)) {
+    $known = Join-Path $repoRoot "nssm-2.24\\nssm-2.24\\win64\\nssm.exe"
+    if (Test-Path $known) {
+        $nssm = $known
+    }
+}
+if (-not (Test-Path $nssm)) {
+    $found = Get-ChildItem -Path $repoRoot -Recurse -Filter "nssm.exe" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($found) {
+        $nssm = $found.FullName
+    }
+}
+if (-not (Test-Path $nssm)) {
+    Write-Error "nssm.exe not found. Install NSSM or pass -NssmPath."
+    exit 1
 }
 
 $services = @(
