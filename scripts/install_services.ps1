@@ -37,12 +37,17 @@ $PythonExe = $pythonCmd.Source
 
 $uiService = "TempestWeatherUI"
 $alertService = "TempestWeatherAlerts"
+$briefService = "TempestWeatherDailyBrief"
+$emailService = "TempestWeatherDailyEmail"
 $uiArgs = "-m streamlit run dashboard.py --server.headless true --server.port $Port --server.address 0.0.0.0"
 $alertArgs = "-m src.alerts_worker"
+$briefArgs = "-m src.daily_brief_worker"
+$emailArgs = "-m src.daily_email_worker"
 
 $additionalEnvNames = @(
     "SMTP_USERNAME",
     "SMTP_PASSWORD",
+    "SMTP_CRED_TARGET",
     "ALERT_EMAIL_FROM",
     "SMTP_HOST",
     "SMTP_PORT",
@@ -56,7 +61,17 @@ $additionalEnvNames = @(
     "LOCAL_TZ",
     "TEMPEST_DB_PATH",
     "TEMPEST_API_TOKEN",
-    "ALERT_WORKER_INTERVAL_SECONDS"
+    "TEMPEST_API_KEY",
+    "ALERT_WORKER_INTERVAL_SECONDS",
+    "DAILY_BRIEF_INTERVAL_MINUTES",
+    "DAILY_BRIEF_MODEL",
+    "OPENAI_API_KEY",
+    "DAILY_EMAIL_TO",
+    "DAILY_EMAIL_HOUR",
+    "DAILY_EMAIL_MINUTE",
+    "DAILY_EMAIL_LAT",
+    "DAILY_EMAIL_LON",
+    "TEMPEST_STATION_ID"
 )
 $sharedEnvLines = @()
 foreach ($envName in $additionalEnvNames) {
@@ -71,6 +86,10 @@ $uiOut = Join-Path $RepoPath "logs\\ui_service.log"
 $uiErr = Join-Path $RepoPath "logs\\ui_service_error.log"
 $alertOut = Join-Path $RepoPath "logs\\alerts_service.log"
 $alertErr = Join-Path $RepoPath "logs\\alerts_service_error.log"
+$briefOut = Join-Path $RepoPath "logs\\daily_brief_service.log"
+$briefErr = Join-Path $RepoPath "logs\\daily_brief_service_error.log"
+$emailOut = Join-Path $RepoPath "logs\\daily_email_service.log"
+$emailErr = Join-Path $RepoPath "logs\\daily_email_service_error.log"
 
 & $nssm install $uiService $PythonExe $uiArgs
 & $nssm set $uiService Application $PythonExe
@@ -97,7 +116,31 @@ if ($sharedEnvBlock) {
 }
 & $nssm set $alertService Start SERVICE_AUTO_START
 
+& $nssm install $briefService $PythonExe $briefArgs
+& $nssm set $briefService Application $PythonExe
+& $nssm set $briefService AppParameters $briefArgs
+& $nssm set $briefService AppDirectory $RepoPath
+& $nssm set $briefService AppStdout $briefOut
+& $nssm set $briefService AppStderr $briefErr
+if ($sharedEnvBlock) {
+    & $nssm set $briefService AppEnvironmentExtra $sharedEnvBlock
+}
+& $nssm set $briefService Start SERVICE_AUTO_START
+
+& $nssm install $emailService $PythonExe $emailArgs
+& $nssm set $emailService Application $PythonExe
+& $nssm set $emailService AppParameters $emailArgs
+& $nssm set $emailService AppDirectory $RepoPath
+& $nssm set $emailService AppStdout $emailOut
+& $nssm set $emailService AppStderr $emailErr
+if ($sharedEnvBlock) {
+    & $nssm set $emailService AppEnvironmentExtra $sharedEnvBlock
+}
+& $nssm set $emailService Start SERVICE_AUTO_START
+
 & $nssm start $uiService
 & $nssm start $alertService
+& $nssm start $briefService
+& $nssm start $emailService
 
-Write-Host "Services installed and started: $uiService, $alertService"
+Write-Host "Services installed and started: $uiService, $alertService, $briefService, $emailService"

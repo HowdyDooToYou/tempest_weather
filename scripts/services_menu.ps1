@@ -18,9 +18,13 @@ function Show-Menu {
     Write-Output "4) Restart (all)"
     Write-Output "5) Start UI"
     Write-Output "6) Start Alerts"
-    Write-Output "7) Logs (UI)"
-    Write-Output "8) Logs (Alerts)"
-    Write-Output "9) Env Report (keys only)"
+    Write-Output "7) Start Daily Brief"
+    Write-Output "8) Start Daily Email"
+    Write-Output "9) Logs (UI)"
+    Write-Output "A) Logs (Alerts)"
+    Write-Output "B) Logs (Daily Brief)"
+    Write-Output "C) Logs (Daily Email)"
+    Write-Output "D) Env Report (keys only)"
     Write-Output "I) Install services"
     Write-Output "U) Uninstall services"
     Write-Output "0) Exit"
@@ -52,15 +56,25 @@ while ($true) {
         "4" { & $servicesScript -Action restart -Target all -NssmPath $NssmPath }
         "5" { & $servicesScript -Action start -Target ui -NssmPath $NssmPath }
         "6" { & $servicesScript -Action start -Target alerts -NssmPath $NssmPath }
-        "7" {
+        "7" { & $servicesScript -Action start -Target brief -NssmPath $NssmPath }
+        "8" { & $servicesScript -Action start -Target email -NssmPath $NssmPath }
+        "9" {
             $lines = Read-LogLines -DefaultLines $defaultLogLines
             & $servicesScript -Action logs -Target ui -LogLines $lines -NssmPath $NssmPath
         }
-        "8" {
+        "a" {
             $lines = Read-LogLines -DefaultLines $defaultLogLines
             & $servicesScript -Action logs -Target alerts -LogLines $lines -NssmPath $NssmPath
         }
-        "9" { & $servicesScript -Action env -Target all -NssmPath $NssmPath }
+        "b" {
+            $lines = Read-LogLines -DefaultLines $defaultLogLines
+            & $servicesScript -Action logs -Target brief -LogLines $lines -NssmPath $NssmPath
+        }
+        "c" {
+            $lines = Read-LogLines -DefaultLines $defaultLogLines
+            & $servicesScript -Action logs -Target email -LogLines $lines -NssmPath $NssmPath
+        }
+        "d" { & $servicesScript -Action env -Target all -NssmPath $NssmPath }
         "i" { & $servicesScript -Action install -Target all -NssmPath $NssmPath }
         "u" { & $servicesScript -Action uninstall -Target all -NssmPath $NssmPath }
         "0" { break }

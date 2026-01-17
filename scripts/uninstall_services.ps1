@@ -14,11 +14,17 @@ if (-not (Test-Path $nssm)) {
 
 $uiService = "TempestWeatherUI"
 $alertService = "TempestWeatherAlerts"
+$briefService = "TempestWeatherDailyBrief"
+$emailService = "TempestWeatherDailyEmail"
 
 & $nssm stop $uiService
 & $nssm stop $alertService
+& $nssm stop $briefService
+& $nssm stop $emailService
 
 & $nssm remove $uiService confirm
 & $nssm remove $alertService confirm
+& $nssm remove $briefService confirm
+& $nssm remove $emailService confirm
 
-Write-Host "Services removed: $uiService, $alertService"
+Write-Host "Services removed: $uiService, $alertService, $briefService, $emailService"

@@ -1,7 +1,7 @@
 param(
     [ValidateSet("status", "start", "stop", "restart", "install", "uninstall", "logs", "env")]
     [string]$Action = "status",
-    [ValidateSet("all", "ui", "alerts")]
+    [ValidateSet("all", "ui", "alerts", "brief", "email")]
     [string]$Target = "all",
     [string]$NssmPath = "nssm.exe",
     [int]$LogLines = 120
@@ -35,7 +35,9 @@ if (-not (Test-Path $nssm)) {
 
 $services = @(
     @{ Name = "TempestWeatherUI"; Key = "ui" },
-    @{ Name = "TempestWeatherAlerts"; Key = "alerts" }
+    @{ Name = "TempestWeatherAlerts"; Key = "alerts" },
+    @{ Name = "TempestWeatherDailyBrief"; Key = "brief" },
+    @{ Name = "TempestWeatherDailyEmail"; Key = "email" }
 )
 
 function Get-TargetServices {
@@ -98,6 +100,14 @@ function Invoke-Logs {
         Show-Log (Join-Path $repoRoot "logs\\alerts_worker.log") "Alerts worker log"
         Show-Log (Join-Path $repoRoot "logs\\alerts_service_error.log") "Alerts service error"
     }
+    if ($Target -eq "all" -or $Target -eq "brief") {
+        Show-Log (Join-Path $repoRoot "logs\\daily_brief_service.log") "Daily brief log"
+        Show-Log (Join-Path $repoRoot "logs\\daily_brief_service_error.log") "Daily brief error"
+    }
+    if ($Target -eq "all" -or $Target -eq "email") {
+        Show-Log (Join-Path $repoRoot "logs\\daily_email_service.log") "Daily email log"
+        Show-Log (Join-Path $repoRoot "logs\\daily_email_service_error.log") "Daily email error"
+    }
 }
 
 function Get-EnvNames {
@@ -118,14 +128,28 @@ function Invoke-EnvReport {
     $transport = @("SMTP_HOST", "SMTP_PORT", "SMTP_USE_TLS", "SMTP_USE_SSL")
     $recipients = @("ALERT_EMAIL_TO", "VERIZON_SMS_TO")
     $alerts = @("FREEZE_WARNING_F", "DEEP_FREEZE_F", "FREEZE_RESET_F")
-    $optional = @("LOCAL_TZ", "TEMPEST_DB_PATH", "TEMPEST_API_TOKEN", "ALERT_WORKER_INTERVAL_SECONDS")
+    $optional = @(
+        "LOCAL_TZ",
+        "TEMPEST_DB_PATH",
+        "TEMPEST_API_TOKEN",
+        "ALERT_WORKER_INTERVAL_SECONDS",
+        "DAILY_EMAIL_TO",
+        "DAILY_EMAIL_HOUR",
+        "DAILY_EMAIL_MINUTE",
+        "DAILY_EMAIL_LAT",
+        "DAILY_EMAIL_LON"
+    )
     foreach ($svc in (Get-TargetServices $Target)) {
         $names = Get-EnvNames $svc.Name
         if (-not $names.Count) {
             Write-Output "$($svc.Name): no AppEnvironmentExtra configured."
             continue
         }
+        $usingCredManager = $names -contains "SMTP_CRED_TARGET"
         $missingRequired = $required | Where-Object { $names -notcontains $_ }
+        if ($usingCredManager) {
+            $missingRequired = $missingRequired | Where-Object { $_ -notin @("SMTP_USERNAME", "SMTP_PASSWORD") }
+        }
         $missingTransport = $transport | Where-Object { $names -notcontains $_ }
         $missingRecipients = $recipients | Where-Object { $names -notcontains $_ }
         $missingAlerts = $alerts | Where-Object { $names -notcontains $_ }

@@ -91,12 +91,17 @@ def backfill_airlink_raw_all(conn: sqlite3.Connection) -> None:
     count = conn.execute(f"SELECT COUNT(1) FROM {AIRLINK_RAW_TABLE}").fetchone()
     if count and count[0]:
         return
+
+    # Handle legacy schema where payload_hash might be missing
+    cols = table_columns(conn, "airlink_raw")
+    hash_col = "payload_hash" if "payload_hash" in cols else "'legacy_no_hash'"
+
     conn.execute(
         f"""
         INSERT INTO {AIRLINK_RAW_TABLE} (
           received_at_epoch, host, did, ts, lsid, payload_json, payload_hash
         )
-        SELECT received_at_epoch, host, did, ts, lsid, payload_json, payload_hash
+        SELECT received_at_epoch, host, did, ts, lsid, payload_json, {hash_col}
         FROM airlink_raw
         """
     )
@@ -232,11 +237,25 @@ def heartbeat_error(conn: sqlite3.Connection, epoch: int, message: str) -> None:
     )
 
 def run():
+    global HOST, URL
     if not HOST:
-        log("ERROR: DAVIS_AIRLINK_HOST not set (e.g. http://192.168.1.19)")
-        return
+        # Fallback to common IP if not set
+        HOST = "http://192.168.1.1"
+        URL = f"{HOST}/v1/current_conditions"
+        log(f"WARNING: DAVIS_AIRLINK_HOST not set. Defaulting to {HOST}")
 
-    ensure_schema()
+    try:
+        ensure_schema()
+    except Exception as e:
+        log(f"CRITICAL: Schema init failed: {e}")
+        traceback.print_exc()
+        try:
+            with db() as conn:
+                heartbeat_error(conn, int(time.time()), f"Startup schema error: {e}")
+                conn.commit()
+        except Exception:
+            pass
+        return
 
     log(f"DB ready at: {DB_PATH}")
     log(f"Polling AirLink URL={URL} every {POLL_SEC}s")

@@ -16,8 +16,13 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 
 ## Requirements
 - Python 3.10+ (tested on 3.12)
-- Dependencies: `streamlit`, `pandas`, `altair`, `requests`
+- Dependencies: `streamlit`, `streamlit-autorefresh`, `pandas`, `altair`, `requests`
 - Tempest/AirLink data available in `data/tempest.db` (and related tables)
+- Optional env: `CONTROL_REFRESH_SECONDS` (default 120; uses `AUTO_REFRESH_SECONDS` as fallback) to set the sidebar auto-refresh cadence without rerendering the main dashboard content.
+- Optional env: `FORECAST_REFRESH_MINUTES` (default 30) to set how often Tempest better_forecast data is refreshed.
+- Forecast credentials: set `TEMPEST_API_TOKEN` (preferred) or `TEMPEST_API_KEY` to enable the forecast tab/section.
+- Forecast units: `FORECAST_UNITS=imperial` (default) or `metric` to request Tempest better_forecast in your preferred units.
+- Daily Brief: optional OpenAI-powered digest written to SQLite via `src/daily_brief_worker.py`; set `OPENAI_API_KEY` (and optionally `DAILY_BRIEF_INTERVAL_MINUTES`, `DAILY_BRIEF_MODEL`). Installed as `TempestWeatherDailyBrief` NSSM service alongside UI/Alerts.
 
 ## Quick start
 1) Create a virtual environment:
@@ -27,7 +32,7 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
    ```
 2) Install deps:
    ```bash
-   pip install streamlit pandas altair requests
+   pip install streamlit streamlit-autorefresh pandas altair requests
    ```
 3) Run the app:
    ```bash
@@ -47,9 +52,15 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 - `LOCAL_TZ`: optional, defaults to `America/New_York`.
 
 ### Alerts
-- SMTP credentials (environment only):
-  - `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM`
+- SMTP credentials (env or Windows Credential Manager):
+  - Env vars: `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM`
+  - Credential Manager: store a Generic credential target `TempestWeatherSMTP` (override with `SMTP_CRED_TARGET`), username = Gmail address, password = app password.
   - Optional: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_TLS`, `SMTP_USE_SSL`
+  - Helper script:
+    ```powershell
+    .\scripts\set_smtp_credential.ps1 -Username "you@gmail.com"
+    ```
+    Use `-Target` to match `SMTP_CRED_TARGET` if you changed it.
 - Recipients:
   - Email: `ALERT_EMAIL_TO` (env) or save via Controls -> Alerts.
   - SMS: `VERIZON_SMS_TO` (env) or save via Controls -> Alerts.
@@ -64,6 +75,7 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 
 ## Alerts and privacy
 - SMTP credentials are never stored in the database or code.
+- Windows Credential Manager credentials are loaded at runtime and do not need to be in `.env` or service config.
 - Recipient overrides saved in the UI are stored in `data/tempest.db` (gitignored).
 - Saved recipients override env values; clear them in Controls -> Alerts to revert.
 
@@ -71,6 +83,8 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 1) Install NSSM (for example: `choco install nssm`).
 2) Configure environment variables for services (Windows System Environment or NSSM Environment tab).
    The installer reads from the current shell and writes them into `AppEnvironmentExtra`.
+   If using Windows Credential Manager, set `SMTP_CRED_TARGET` (optional; defaults to `TempestWeatherSMTP`).
+   Credential Manager lookups use the service account, so run NSSM services under your user if needed.
 3) Run:
    ```powershell
    .\scripts\install_services.ps1
@@ -98,7 +112,7 @@ Services installed by the script:
 The install script sets `ALERTS_WORKER_ENABLED=1` for the UI service to avoid duplicate alerts.
 
 Service env checklist (NSSM/System):
-- Required: `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM`
+- Required: `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM` (or use `SMTP_CRED_TARGET` and omit username/password)
 - Recipients: `ALERT_EMAIL_TO` and `VERIZON_SMS_TO` (optional if saved via Controls -> Alerts)
 - Transport: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_TLS`, `SMTP_USE_SSL` (set one true)
 - Alerts: `FREEZE_WARNING_F`, `DEEP_FREEZE_F`, `FREEZE_RESET_F` (optional)

@@ -10,6 +10,7 @@ ALERT_STATE_TABLE = "alert_state"
 ALERT_CONFIG_TABLE = "alert_config"
 DEFAULT_SMTP_HOST = "smtp.gmail.com"
 DEFAULT_SMTP_PORT = 587
+DEFAULT_SMTP_CREDENTIAL_TARGET = "TempestWeatherSMTP"
 
 
 def _now_epoch() -> int:
@@ -24,6 +25,76 @@ def _clean_str(value) -> str:
 
 def _env_flag(name: str, default: str) -> bool:
     return os.getenv(name, default).lower() in ("1", "true", "yes", "on")
+
+
+def _read_windows_credential(target: str) -> tuple[str | None, str | None]:
+    if os.name != "nt" or not target:
+        return None, None
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except Exception:
+        return None, None
+
+    class CREDENTIAL(ctypes.Structure):
+        _fields_ = [
+            ("Flags", wintypes.DWORD),
+            ("Type", wintypes.DWORD),
+            ("TargetName", wintypes.LPWSTR),
+            ("Comment", wintypes.LPWSTR),
+            ("LastWritten", wintypes.FILETIME),
+            ("CredentialBlobSize", wintypes.DWORD),
+            ("CredentialBlob", ctypes.c_void_p),
+            ("Persist", wintypes.DWORD),
+            ("AttributeCount", wintypes.DWORD),
+            ("Attributes", ctypes.c_void_p),
+            ("TargetAlias", wintypes.LPWSTR),
+            ("UserName", wintypes.LPWSTR),
+        ]
+
+    advapi32 = ctypes.WinDLL("Advapi32", use_last_error=True)
+    cred_read = advapi32.CredReadW
+    cred_read.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.POINTER(CREDENTIAL)),
+    ]
+    cred_read.restype = wintypes.BOOL
+    cred_free = advapi32.CredFree
+    cred_free.argtypes = [ctypes.c_void_p]
+    cred_free.restype = None
+
+    cred_ptr = ctypes.POINTER(CREDENTIAL)()
+    if not cred_read(target, 1, 0, ctypes.byref(cred_ptr)):
+        return None, None
+    try:
+        cred = cred_ptr.contents
+        username = cred.UserName
+        password = ""
+        if cred.CredentialBlobSize and cred.CredentialBlob:
+            blob = ctypes.string_at(cred.CredentialBlob, cred.CredentialBlobSize)
+            try:
+                password = blob.decode("utf-16-le")
+            except UnicodeDecodeError:
+                password = blob.decode("utf-8", errors="ignore")
+            password = password.rstrip("\x00")
+        return username or None, password or None
+    finally:
+        cred_free(cred_ptr)
+
+
+def _load_smtp_credentials() -> None:
+    env_username = _clean_str(os.getenv("SMTP_USERNAME"))
+    env_password = os.getenv("SMTP_PASSWORD")
+    if env_username and env_password:
+        return
+    target = _clean_str(os.getenv("SMTP_CRED_TARGET")) or DEFAULT_SMTP_CREDENTIAL_TARGET
+    username, password = _read_windows_credential(target)
+    if username and not env_username:
+        os.environ["SMTP_USERNAME"] = username
+    if password and not env_password:
+        os.environ["SMTP_PASSWORD"] = password
 
 
 def ensure_alert_state_table(db_path: str) -> None:
@@ -167,14 +238,20 @@ def get_email_config(
         port = int(port_value)
     except ValueError:
         port = DEFAULT_SMTP_PORT
-    username = _clean_str(overrides.get("smtp_username")) or _clean_str(os.getenv("SMTP_USERNAME"))
-    password = overrides.get("smtp_password") or os.getenv("SMTP_PASSWORD")
+    username = _clean_str(overrides.get("smtp_username"))
+    password = overrides.get("smtp_password")
+    if not username or not password:
+        _load_smtp_credentials()
+    if not username:
+        username = _clean_str(os.getenv("SMTP_USERNAME"))
+    if not password:
+        password = os.getenv("SMTP_PASSWORD")
     from_address = _clean_str(overrides.get("smtp_from")) or _clean_str(os.getenv("ALERT_EMAIL_FROM")) or username
     to_address = _clean_str(to_address) or _clean_str(os.getenv("ALERT_EMAIL_TO"))
     use_tls = _env_flag("SMTP_USE_TLS", "true")
     use_ssl = _env_flag("SMTP_USE_SSL", "false")
     if not username or not password or not from_address:
-        message = "Email auth missing (Gmail address/app password)."
+        message = "Email auth missing (SMTP env vars or Windows Credential Manager)."
         return (None, message) if return_error else None
     config = {
         "host": host,

@@ -5,15 +5,25 @@ import subprocess
 import time
 import re
 from datetime import datetime
+from contextlib import closing
 import requests
 from pathlib import Path
 import os
+from urllib.parse import urlencode
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit_autorefresh import st_autorefresh
 
+from src.ui.apply_styles import apply_styles
+from src.ui.components.cards import metric_card
+from src.ui.shell import render_left_rail, render_header_strip, render_main_layout
+from src.pages import home as page_home
+from src.pages import trends as page_trends
+from src.pages import compare as page_compare
+from src.pages import data as page_data
 from src.alerting import (
     build_freeze_alert_message,
     delete_alert_config,
@@ -26,6 +36,14 @@ from src.alerting import (
     send_email,
     send_verizon_sms,
 )
+from src.config_store import (
+    connect as config_connect,
+    get_bool,
+    get_float,
+    set_bool,
+    set_float,
+)
+from src.forecast import parse_tempest_forecast
 
 DB_PATH = os.getenv("TEMPEST_DB_PATH", "data/tempest.db")
 TEMPEST_STATION_ID = 475329
@@ -82,7 +100,9 @@ GAUGE_COLORS = {
     "gust": "#f2a85b",
 }
 LOCAL_TZ = os.getenv("LOCAL_TZ", "America/New_York")
-AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "60"))
+CONTROL_REFRESH_SECONDS = int(os.getenv("CONTROL_REFRESH_SECONDS", os.getenv("AUTO_REFRESH_SECONDS", "120")))
+FORECAST_REFRESH_MINUTES = int(os.getenv("FORECAST_REFRESH_MINUTES", "30"))
+FORECAST_UNITS = "imperial"
 FREEZE_WARNING_F = float(os.getenv("FREEZE_WARNING_F", "32"))
 DEEP_FREEZE_F = float(os.getenv("DEEP_FREEZE_F", "18"))
 FREEZE_RESET_F = float(os.getenv("FREEZE_RESET_F", "34"))
@@ -118,53 +138,16 @@ st.set_page_config(
     layout="wide"
 )
 
+apply_styles()
+
 # ------------------------
 # Local UI state (tabs/scroll/refresh)
 # ------------------------
-refresh_ms = AUTO_REFRESH_SECONDS * 1000
 state_script = """
 <script>
 (function() {
   const storage = window.parent.localStorage || window.localStorage;
-  const TAB_KEY = "tempest:last_tab";
   const SCROLL_KEY = "tempest:last_scroll";
-  const refreshMs = __REFRESH_MS__;
-  if (!window.parent.__tempestRefreshSet) {
-    window.parent.__tempestRefreshSet = true;
-    window.parent.setInterval(() => {
-      const doc = window.parent.document;
-      if (doc && doc.hidden) return;
-      window.parent.location.reload();
-    }, refreshMs);
-  }
-  function tabButtons() {
-    return Array.from(window.parent.document.querySelectorAll('button[role="tab"]'));
-  }
-  function activeTabLabel() {
-    const tabs = tabButtons();
-    const active = tabs.find((btn) => btn.getAttribute("aria-selected") === "true");
-    return active ? active.textContent.trim() : "";
-  }
-  function attachTabHandlers() {
-    const tabs = tabButtons();
-    if (!tabs.length) return false;
-    const active = activeTabLabel();
-    if (active) storage.setItem(TAB_KEY, active);
-    tabs.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        storage.setItem(TAB_KEY, btn.textContent.trim());
-      });
-    });
-    return true;
-  }
-  let tries = 0;
-  const timer = window.parent.setInterval(() => {
-    tries += 1;
-    attachTabHandlers();
-    if (tries > 12) {
-      window.parent.clearInterval(timer);
-    }
-  }, 300);
   window.parent.addEventListener("beforeunload", () => {
     storage.setItem(SCROLL_KEY, String(window.parent.scrollY || 0));
   });
@@ -178,7 +161,7 @@ state_script = """
 </script>
 """
 components.html(
-    state_script.replace("__REFRESH_MS__", str(refresh_ms)),
+    state_script,
     height=0,
 )
 
@@ -208,6 +191,19 @@ components.html(
     """,
     height=0,
 )
+
+# Navigation/page state
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+valid_pages = ["home", "trends", "compare", "data"]
+try:
+    query_page = st.query_params.get("page")
+except Exception:
+    query_page = None
+if isinstance(query_page, list):
+    query_page = query_page[0] if query_page else None
+if query_page in valid_pages:
+    st.session_state.page = query_page
 
 # ------------------------
 # Theming
@@ -846,6 +842,7 @@ st.markdown(
         font-weight: 600;
         font-size: 0.85rem;
         min-height: 34px;
+        max-width: 100%;
     }
     .ingest-dot {
         width: 10px;
@@ -861,6 +858,7 @@ st.markdown(
         display: flex;
         flex-direction: column;
         gap: 2px;
+        min-width: 0;
     }
     .ingest-title {
         font-weight: 700;
@@ -869,6 +867,13 @@ st.markdown(
         font-size: 0.72rem;
         color: var(--text-secondary);
         font-weight: 500;
+    }
+    .ingest-title,
+    .ingest-meta {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
     }
     .ingest-pill {
         padding: 2px 6px;
@@ -991,14 +996,21 @@ st.markdown(
     .ingest-events {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 6px;
         margin-top: 6px;
         color: var(--text-primary);
         font-weight: 600;
     }
     .ingest-events span {
+        flex: 0 0 auto;
         color: var(--text-secondary);
         font-weight: 700;
+    }
+    .ingest-info {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 4px;
     }
     .ingest-grid {
         margin-top: 10px;
@@ -1416,6 +1428,208 @@ def compute_heat_index(temp_f, humidity):
     return hi.fillna(t)
 
 
+def compute_wind_chill(temp_f, wind_mph):
+    """Wind chill per NOAA; returns the input temp when outside formula bounds."""
+    if temp_f is None or wind_mph is None:
+        return None
+    if pd.isna(temp_f) or pd.isna(wind_mph):
+        return None
+    if temp_f > 50 or wind_mph < 3:
+        return temp_f
+    w_pow = wind_mph ** 0.16
+    return 35.74 + (0.6215 * temp_f) - 35.75 * w_pow + 0.4275 * temp_f * w_pow
+
+
+def ensure_daily_briefs_table(conn: sqlite3.Connection):
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS daily_briefs (
+            date TEXT PRIMARY KEY,
+            generated_at TEXT,
+            tz TEXT,
+            headline TEXT,
+            bullets_json TEXT,
+            tomorrow_text TEXT,
+            model TEXT,
+            version TEXT
+        )
+        """
+    )
+    conn.commit()
+
+
+def load_daily_briefs(conn: sqlite3.Connection):
+    ensure_daily_briefs_table(conn)
+    rows = conn.execute(
+        "SELECT date, generated_at, headline, bullets_json, tomorrow_text FROM daily_briefs ORDER BY date DESC LIMIT 2"
+    ).fetchall()
+    briefs = []
+    for row in rows:
+        try:
+            bullets = json.loads(row[3]) if row[3] else []
+        except Exception:
+            bullets = []
+        briefs.append(
+            {
+                "date": row[0],
+                "generated_at": row[1],
+                "headline": row[2],
+                "bullets": bullets,
+                "tomorrow": row[4],
+            }
+        )
+    return briefs
+
+
+@st.cache_data(ttl=FORECAST_REFRESH_MINUTES * 60)
+def fetch_tempest_forecast(token=None, station_id=None, lat=None, lon=None, api_key=None):
+    """
+    Fetch Tempest better_forecast.
+    Accepts either token (preferred) or api_key. If override lat/lon provided, try them first; fallback to station_id.
+    """
+    if not token and not api_key:
+        return None, "TEMPEST_API_TOKEN or TEMPEST_API_KEY not set"
+    base_url = "https://swd.weatherflow.com/swd/rest/better_forecast"
+    units = {
+        "units_temp": "f",
+        "units_wind": "mph",
+        "units_pressure": "inhg",
+        "units_precip": "in",
+        "units_distance": "mi",
+    }
+    params = {
+        "station_id": station_id,
+        **units,
+    }
+    if token:
+        params["token"] = token
+    if api_key and not token:
+        params["api_key"] = api_key
+    if lat is not None and lon is not None:
+        params["lat"] = lat
+        params["lon"] = lon
+    try:
+        resp = requests.get(base_url, params=params, timeout=10, headers={"accept": "application/json"})
+        resp.raise_for_status()
+        payload = resp.json()
+        status = payload.get("status") or {}
+        if status.get("status_code") not in (0, None):
+            if "lat" in params:
+                params.pop("lat", None)
+                params.pop("lon", None)
+                resp = requests.get(base_url, params=params, timeout=10, headers={"accept": "application/json"})
+                resp.raise_for_status()
+                payload = resp.json()
+                status = payload.get("status") or {}
+                if status.get("status_code") not in (0, None):
+                    return None, status.get("status_message") or "API returned error"
+            else:
+                return None, status.get("status_message") or "API returned error"
+        return payload, status.get("status_message") or "OK"
+    except Exception:
+        return None, "Request failed"
+
+
+@st.cache_data(ttl=FORECAST_REFRESH_MINUTES * 60)
+def fetch_openmeteo_forecast(lat, lon, tz_name):
+    """Fetch forecast from Open-Meteo (no key required)."""
+    if lat is None or lon is None:
+        return None, None, "lat/lon missing"
+    hourly_fields = [
+        "temperature_2m",
+        "apparent_temperature",
+        "precipitation_probability",
+        "precipitation",
+        "pressure_msl",
+        "relativehumidity_2m",
+        "windspeed_10m",
+        "windgusts_10m",
+    ]
+    daily_fields = [
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "precipitation_probability_max",
+        "sunrise",
+        "sunset",
+    ]
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": ",".join(hourly_fields),
+        "daily": ",".join(daily_fields),
+        "timezone": tz_name or "auto",
+        "forecast_days": 8,
+    }
+    params.update(
+        {
+            "windspeed_unit": "mph",
+            "temperature_unit": "fahrenheit",
+            "precipitation_unit": "inch",
+            "timeformat": "iso8601",
+        }
+    )
+    try:
+        resp = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return None, None, "Open-Meteo request failed"
+
+    hourly_raw = data.get("hourly")
+    daily_raw = data.get("daily")
+    hourly_df = pd.DataFrame(hourly_raw) if isinstance(hourly_raw, dict) else None
+    daily_df = pd.DataFrame(daily_raw) if isinstance(daily_raw, dict) else None
+
+    if hourly_df is not None and not hourly_df.empty:
+        hourly_df["time"] = pd.to_datetime(hourly_df["time"], utc=True)
+        try:
+            hourly_df["time"] = hourly_df["time"].dt.tz_convert(tz_name)
+        except Exception:
+            hourly_df["time"] = hourly_df["time"].dt.tz_convert("UTC")
+        hourly_df.rename(
+            columns={
+                "temperature_2m": "air_temperature",
+                "apparent_temperature": "feels_like",
+                "precipitation_probability": "precip_probability",
+                "pressure_msl": "pressure",
+                "relativehumidity_2m": "relative_humidity",
+                "windspeed_10m": "wind_avg",
+                "windgusts_10m": "wind_gust",
+            },
+            inplace=True,
+        )
+        # Open-Meteo pressure is hPa; convert to inHg for the UI.
+        hourly_df["pressure"] = hourly_df["pressure"].apply(hpa_to_inhg)
+        hourly_df["precip_probability"] = hourly_df["precip_probability"].fillna(0)
+    else:
+        hourly_df = None
+
+    if daily_df is not None and not daily_df.empty:
+        daily_df["day_start_local"] = pd.to_datetime(daily_df["time"], utc=True)
+        daily_df["sunrise"] = pd.to_datetime(daily_df["sunrise"], utc=True)
+        daily_df["sunset"] = pd.to_datetime(daily_df["sunset"], utc=True)
+        try:
+            daily_df["day_start_local"] = daily_df["day_start_local"].dt.tz_convert(tz_name)
+            daily_df["sunrise"] = daily_df["sunrise"].dt.tz_convert(tz_name)
+            daily_df["sunset"] = daily_df["sunset"].dt.tz_convert(tz_name)
+        except Exception:
+            daily_df["day_start_local"] = daily_df["day_start_local"].dt.tz_convert("UTC")
+            daily_df["sunrise"] = daily_df["sunrise"].dt.tz_convert("UTC")
+            daily_df["sunset"] = daily_df["sunset"].dt.tz_convert("UTC")
+        daily_df.rename(
+            columns={
+                "temperature_2m_max": "air_temp_high",
+                "temperature_2m_min": "air_temp_low",
+                "precipitation_probability_max": "precip_probability",
+            },
+            inplace=True,
+        )
+    else:
+        daily_df = None
+
+    return hourly_df, daily_df, "OK"
+
+
 def compute_pm25_aqi(pm_value):
     # US EPA PM2.5 breakpoints (24h AQI)
     breakpoints = [
@@ -1600,12 +1814,24 @@ def read_watchdog_status():
 
 def clean_chart(data, height=240, title=None):
     """Shared line chart without hover overlays for better performance."""
+    y_scale = None
+    if isinstance(data, pd.DataFrame) and not data.empty and "value" in data:
+        metrics = set(str(m).lower() for m in data["metric"].unique()) if "metric" in data else set()
+        is_pressure_only = len(metrics) == 1 and any("pressure" in m for m in metrics)
+        if is_pressure_only:
+            values = pd.to_numeric(data["value"], errors="coerce").dropna()
+            if not values.empty:
+                v_min, v_max = values.min(), values.max()
+                span = max(v_max - v_min, 0.01)
+                pad = max(0.02, span * 0.25)
+                y_scale = alt.Scale(domain=[v_min - pad, v_max + pad])
+
     chart = (
         alt.Chart(data)
         .mark_line(interpolate="monotone", strokeWidth=2)
         .encode(
             x=alt.X("time:T", title="Time"),
-            y=alt.Y("value:Q", title=None),
+            y=alt.Y("value:Q", title=None, scale=y_scale) if y_scale else alt.Y("value:Q", title=None),
             color=alt.Color("metric:N", legend=alt.Legend(title=None), scale=alt.Scale(scheme=CHART_SCHEME)),
         )
         .properties(height=height)
@@ -1613,12 +1839,132 @@ def clean_chart(data, height=240, title=None):
     if title:
         chart = chart.properties(title=title)
 
+    need_aqi_bands = (
+        isinstance(data, pd.DataFrame)
+        and not data.empty
+        and "metric" in data
+        and any("AQI" in str(m) for m in data["metric"].unique())
+    )
+    if need_aqi_bands:
+        band_df = pd.DataFrame(
+            [
+                {"y0": 0, "y1": 50, "label": "Good"},
+                {"y0": 51, "y1": 100, "label": "Moderate"},
+                {"y0": 101, "y1": 150, "label": "Unhealthy (SG)"},
+                {"y0": 151, "y1": 200, "label": "Unhealthy"},
+                {"y0": 201, "y1": 300, "label": "Very Unhealthy"},
+                {"y0": 301, "y1": 500, "label": "Hazardous"},
+            ]
+        )
+        band_colors = ["#67e777", "#ffd75e", "#ffb347", "#ff7b7b", "#c065ff", "#803400"]
+        bands = (
+            alt.Chart(band_df)
+            .mark_rect(opacity=0.08)
+            .encode(
+                y="y0:Q",
+                y2="y1:Q",
+                color=alt.Color(
+                    "label:N",
+                    legend=alt.Legend(title="AQI Zones"),
+                    scale=alt.Scale(domain=band_df["label"].tolist(), range=band_colors),
+                ),
+            )
+        )
+        chart = alt.layer(bands, chart).resolve_scale(color="independent")
+
     return (
         chart
         .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
         .configure_legend(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR)
         .configure_title(color=CHART_TITLE_COLOR)
     )
+
+
+def forecast_hourly_chart(hourly_df: pd.DataFrame | None):
+    if hourly_df is None or hourly_df.empty:
+        return None
+    hours = hourly_df.copy().head(24)
+    temp_cols = []
+    if "air_temperature" in hours:
+        temp_cols.append(("air_temperature", "Air Temp"))
+    if "feels_like" in hours:
+        temp_cols.append(("feels_like", "Feels Like"))
+    if not temp_cols:
+        return None
+    temp_df = hours[["time"] + [c[0] for c in temp_cols]].melt(
+        id_vars=["time"],
+        var_name="metric_raw",
+        value_name="value",
+    )
+    label_map = {raw: label for raw, label in temp_cols}
+    temp_df["metric"] = temp_df["metric_raw"].map(label_map)
+    temp_df.drop(columns=["metric_raw"], inplace=True)
+    color_domain = [label for _, label in temp_cols]
+    color_range = [THEME_COLORS["accent"], THEME_COLORS["accent3"]][: len(color_domain)]
+
+    lines = (
+        alt.Chart(temp_df)
+        .mark_line(interpolate="monotone", strokeWidth=2.2)
+        .encode(
+            x=alt.X("time:T", title="Time"),
+            y=alt.Y("value:Q", title="Temp (F)"),
+            color=alt.Color("metric:N", legend=alt.Legend(title=None), scale=alt.Scale(domain=color_domain, range=color_range)),
+        )
+    )
+
+    precip = None
+    if "precip_probability" in hours:
+        precip = (
+            alt.Chart(hours)
+            .mark_bar(opacity=0.25, color=THEME_COLORS["accent2"])
+            .encode(
+                x=alt.X("time:T", title=""),
+                y=alt.Y("precip_probability:Q", title="Precip %", scale=alt.Scale(domain=[0, 100])),
+            )
+        )
+
+    chart = lines
+    if precip is not None:
+        chart = alt.layer(precip, lines).resolve_scale(y="independent")
+
+    return (
+        chart.properties(height=260)
+        .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
+        .configure_legend(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR)
+    )
+
+
+def render_daily_outlook(daily_df: pd.DataFrame | None, max_days: int = 5):
+    if daily_df is None or daily_df.empty:
+        return
+    days = daily_df.head(max_days)
+    cols = st.columns(len(days))
+    for col, (_, row) in zip(cols, days.iterrows()):
+        date_val = row.get("day_start_local")
+        date_label = date_val.strftime("%a %b %d") if isinstance(date_val, (pd.Timestamp, datetime)) else "Day"
+        cond = row.get("conditions", "--")
+        high = row.get("air_temp_high")
+        low = row.get("air_temp_low")
+        precip_prob = row.get("precip_probability")
+        sunrise = row.get("sunrise")
+        sunset = row.get("sunset")
+        precip_text = f"{precip_prob:.0f}%" if precip_prob is not None and not pd.isna(precip_prob) else "--"
+        high_text = "--" if high is None or pd.isna(high) else f"{high:.0f}F"
+        low_text = "--" if low is None or pd.isna(low) else f"{low:.0f}F"
+        sunrise_text = fmt_time(sunrise) if sunrise is not None else "--"
+        sunset_text = fmt_time(sunset) if sunset is not None else "--"
+        col.markdown(
+            f"""
+            <div class="daily-card">
+              <div class="daily-date">{date_label}</div>
+              <div class="daily-cond">{html_escape(cond)}</div>
+              <div class="daily-temps"><span class="hi">High {high_text}</span> - <span class="lo">Low {low_text}</span></div>
+              <div class="daily-precip">Precip {precip_text}</div>
+              <div class="daily-sun">Sunrise {sunrise_text} - Sunset {sunset_text}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def bar_chart(data, height=200, title=None, color=None):
@@ -1686,6 +2032,9 @@ def render_sidebar_gauges(container, tempest_latest=None, airlink_latest=None, h
         heat_index = tempest_latest.get("heat_index_f")
         if heat_index is not None and not pd.isna(heat_index):
             sidebar_gauge(container, "Feels Like (F)", heat_index, -10, 110, precision=1, color=GAUGE_COLORS["feels"], highlight=highlights.get("temp"))
+        wind_chill = compute_wind_chill(tempest_latest.air_temperature_f, tempest_latest.wind_speed_mph)
+        if wind_chill is not None:
+            sidebar_gauge(container, "Wind Chill (F)", wind_chill, -40, 80, precision=1, color=GAUGE_COLORS["wind"], highlight=highlights.get("wind"))
         sidebar_gauge(container, "Humidity (%)", tempest_latest.relative_humidity, 0, 100, precision=0, color=GAUGE_COLORS["hum"], highlight=highlights.get("hum"))
         sidebar_gauge(container, "Pressure (inHg)", tempest_latest.pressure_inhg, 28, 32, precision=2, color=GAUGE_COLORS["pressure"], highlight=highlights.get("pressure"))
         sidebar_gauge(container, "Wind Avg (mph)", tempest_latest.wind_speed_mph, 0, 40, precision=1, color=GAUGE_COLORS["wind"], highlight=highlights.get("wind"))
@@ -1970,9 +2319,19 @@ def recent_activity(table, epoch_col, cutoff_epoch, device_col=None, device_id=N
     return {"count": count, "last_epoch": last_epoch}
 
 
-def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector_statuses=None):
+def render_ingest_banner(
+    sources,
+    total_recent,
+    avg_latency_text=None,
+    collector_statuses=None,
+    target=None,
+    include_diagnostics=False,
+    title="Station health",
+):
     if not sources:
         return
+
+    target = target or st
 
     if "ping_results" not in st.session_state:
         st.session_state.ping_results = {}
@@ -2000,6 +2359,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
         "offline": "Offline",
         "standby": "Standby",
     }
+
     def indicator_chip(name, status, colors, meta=None, pill_text=None, meta_title=None):
         pill = pill_text or status_labels.get(status, "Live")
         meta_attr = f" title=\"{html_escape(meta_title)}\"" if meta and meta_title else ""
@@ -2012,10 +2372,12 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
   </div>
   <span class="ingest-pill {status}">{html_escape(pill)}</span>
 </div>"""
+
     collector_statuses = collector_statuses or []
     watchdog_status = read_watchdog_status()
     if watchdog_status:
         collector_statuses = collector_statuses + [watchdog_status]
+
     statuses = [
         {
             "name": s["name"],
@@ -2027,6 +2389,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
         }
         for s in sources
     ]
+
     def needs_attention(item):
         if item["name"] == "Tempest Hub":
             return item["status"] == "offline"
@@ -2039,7 +2402,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
         badge_text = f"{badge_text} - avg data age {avg_latency_text}"
     events_html = (
         f"<div class=\"ingest-help ingest-events\">{html_escape(badge_text)} "
-        "<span title='Avg data age reflects how long ago each source last reported.'>(i)</span></div>"
+        "<span class=\"ingest-info\" title='Avg data age reflects how long ago each source last reported.'>(i)</span></div>"
     )
 
     summary_html = "".join(
@@ -2081,10 +2444,35 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
             ]
         )
 
+    if title:
+        target.markdown(f"<div class='section-title'>{title}</div>", unsafe_allow_html=True)
 
-    # Sidebar connection summary and diagnostics.
-    st.sidebar.subheader("Connection")
-    with st.sidebar.container():
+    hub_uptime_text = fmt_duration(
+        (time.time() - hub_activity["last_epoch"]) if hub_activity.get("last_epoch") else None
+    )
+    target.markdown(
+        f"""
+<div class="ingest-shell hero-glow">
+  <div class="ingest-header-row">
+    <div>
+      <div class="ingest-eyebrow">Signals</div>
+      <div class="ingest-summary">{header_title}</div>
+      {events_html}
+      <div class="ingest-help">Hub uptime: {hub_uptime_text}</div>
+      <div class="ingest-status-row">
+        {summary_html}
+      </div>
+      {collector_section_html}
+    </div>
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if include_diagnostics:
+        target.markdown("<div class='metric-expanders'>", unsafe_allow_html=True)
+
         def ping_device(host):
             if not host:
                 return False, "Ping target not configured"
@@ -2100,39 +2488,18 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
             except Exception:
                 return False, "Ping failed"
 
-        hub_uptime_text = fmt_duration((time.time() - hub_activity["last_epoch"]) if hub_activity.get("last_epoch") else None)
-        st.markdown(
-            f"""
-<div class="ingest-shell hero-glow">
-  <div class="ingest-header-row">
-    <div>
-      <div class="ingest-eyebrow">Signals</div>
-      <div class="ingest-summary">{header_title}</div>
-      {events_html}
-      <div class="ingest-help">Hub uptime: {hub_uptime_text}</div>
-      <div class="ingest-status-row">
-        {summary_html}
-      </div>
-      {collector_section_html}
-    </div>
-  </div>
-</div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown("<div class='metric-expanders'>", unsafe_allow_html=True)
-        with st.expander("Diagnostics", expanded=False):
+        with target.expander("Diagnostics", expanded=False):
             st.caption("Ping checks local network reachability for each source.")
             has_targets = False
             for src in statuses:
-                target = PING_TARGETS.get(src["name"]) or (
+                ping_target = PING_TARGETS.get(src["name"]) or (
                     PING_TARGETS.get("Tempest Hub") if src["name"] == "Tempest Station" else None
                 )
-                if target:
+                if ping_target:
                     has_targets = True
-                disabled = not target
+                disabled = not ping_target
                 if st.button(f"Ping {src['name']}", key=f"ping_{src['name']}", disabled=disabled):
-                    ok, msg = ping_device(target)
+                    ok, msg = ping_device(ping_target)
                     st.session_state.ping_results[src["name"]] = (ok, msg, time.time())
                 result = st.session_state.ping_results.get(src["name"])
                 if result and time.time() - result[2] < 6:
@@ -2144,8 +2511,7 @@ def render_ingest_banner(sources, total_recent, avg_latency_text=None, collector
                     )
             if not has_targets:
                 st.caption("Set ping targets in PING_TARGETS to enable diagnostics.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
+        target.markdown("</div>", unsafe_allow_html=True)
 
 
 def daily_extremes(df, time_col, value_cols):
@@ -2665,346 +3031,328 @@ def story_lines(tempest_df, airlink_df, window_desc: str):
 
 
 # ------------------------
-# Sidebar controls
+# Sidebar controls (periodic rerun to keep controls fresh)
 # ------------------------
-st.sidebar.header("Controls")
+if CONTROL_REFRESH_SECONDS > 0:
+    st_autorefresh(
+        interval=CONTROL_REFRESH_SECONDS * 1000,
+        key="controls_autorefresh",
+    )
 
-if "fast_view" not in st.session_state:
-    st.session_state.fast_view = True
-fast_view = st.sidebar.toggle(
-    "Fast view",
-    key="fast_view",
-    help="Show Overview only for quicker loads. Turn off for full tabs.",
-)
-
-if "hours" not in st.session_state:
-    st.session_state.hours = 24
-if "filter_mode" not in st.session_state:
-    st.session_state.filter_mode = "Window (hours)"
-if "date_range" not in st.session_state:
+if "timeframe" not in st.session_state:
+    st.session_state.timeframe = "24h"
+if "custom_range" not in st.session_state:
     today = pd.Timestamp.utcnow().date()
-    st.session_state.date_range = (today - pd.Timedelta(days=1), today)
+    st.session_state.custom_range = (today - pd.Timedelta(days=1), today)
 
-filter_mode = st.sidebar.radio(
-    "Range mode",
-    ["Window (hours)", "Custom dates", "All time"],
-    index=["Window (hours)", "Custom dates", "All time"].index(st.session_state.filter_mode)
-)
-st.session_state.filter_mode = filter_mode
-
-since_epoch = 0
-until_epoch = None
-window_desc = "this window"
-
-if filter_mode == "Window (hours)":
-    preset_map = {
-        "6h": 6,
-        "12h": 12,
-        "24h": 24,
-        "7d": 168,
-        "Custom": None,
-    }
-    if "hour_preset" not in st.session_state:
-        st.session_state.hour_preset = "Custom"
-
-    def apply_hour_preset():
-        selected = st.session_state.hour_preset
-        preset_value = preset_map.get(selected)
-        if preset_value is not None:
-            st.session_state.hours = preset_value
-
-    def sync_hour_preset():
-        hours_value = st.session_state.hours
-        matched = next(
-            (label for label, val in preset_map.items() if val == hours_value),
-            "Custom",
-        )
-        st.session_state.hour_preset = matched
-
-    st.sidebar.markdown("<div id='hour-presets'></div>", unsafe_allow_html=True)
-    st.sidebar.radio(
-        "Quick window",
-        list(preset_map.keys()),
-        key="hour_preset",
-        on_change=apply_hour_preset,
+def render_filters_ui():
+    st.markdown("<div class='section-title'>Date Filters</div>", unsafe_allow_html=True)
+    timeframe = st.radio(
+        "Date Filters",
+        ["Today", "24h", "7d", "Custom"],
         horizontal=True,
         label_visibility="collapsed",
+        index=["Today", "24h", "7d", "Custom"].index(st.session_state.timeframe),
+    )
+    st.session_state.timeframe = timeframe
+    if timeframe == "Custom":
+        date_range = st.date_input(
+            "Date range (inclusive)",
+            value=st.session_state.custom_range,
+        )
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            st.session_state.custom_range = (date_range[0], date_range[1])
+    st.markdown("<div class='section-title'>Overlays</div>", unsafe_allow_html=True)
+    st.session_state.show_feels = st.checkbox("Feels like", value=st.session_state.get("show_feels", True))
+    st.session_state.show_aqi = st.checkbox("AQI", value=st.session_state.get("show_aqi", True))
+
+render_left_rail(st.session_state.page, render_filters_ui)
+
+def render_icon_rail(active_page: str):
+    params = {}
+    try:
+        params = {key: value for key, value in st.query_params.items() if value}
+    except Exception:
+        params = {}
+
+    def build_link(page_key: str) -> str:
+        updated = dict(params)
+        updated["page"] = page_key
+        query = urlencode(updated, doseq=True)
+        return f"?{query}" if query else "?page=" + page_key
+
+    icons = [
+        ("home", "H", "Home"),
+        ("trends", "Tr", "Trends"),
+        ("compare", "C", "Compare"),
+        ("data", "D", "Data"),
+    ]
+    buttons = []
+    for key, label, title in icons:
+        active_class = "active" if key == active_page else ""
+        href = build_link(key)
+        buttons.append(
+            f"<a class=\"icon-btn {active_class}\" href=\"{href}\" title=\"{title}\">{label}</a>"
+        )
+    st.markdown(
+        "<div class='floating-rail'>" + "".join(buttons) + "</div>",
+        unsafe_allow_html=True,
     )
 
-    if filter_mode == "Window (hours)":
-        hours = st.sidebar.slider(
-            "Time window (hours)",
-            min_value=1,
-            max_value=168,
-            value=int(st.session_state.hours),
-            key="hours",
-            on_change=sync_hour_preset,
-        )
+render_icon_rail(st.session_state.page)
 
-        since_epoch = int(
-            (pd.Timestamp.utcnow() - pd.Timedelta(hours=hours)).timestamp()
-        )
-        window_desc = f"the last {hours}h"
-
-if filter_mode == "Custom dates":
-    date_range = st.sidebar.date_input(
-        "Date range (inclusive)",
-        value=st.session_state.date_range,
-    )
-    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-        start_date, end_date = date_range
-    else:
-        start_date = end_date = pd.Timestamp.utcnow().date()
+def compute_time_window():
+    now = pd.Timestamp.utcnow()
+    timeframe = st.session_state.timeframe
+    if timeframe == "Today":
+        start = now.tz_localize("UTC").tz_convert(LOCAL_TZ).normalize().tz_convert("UTC")
+        return int(start.timestamp()), None, "today"
+    if timeframe == "24h":
+        return int((now - pd.Timedelta(hours=24)).timestamp()), None, "last 24h"
+    if timeframe == "7d":
+        return int((now - pd.Timedelta(days=7)).timestamp()), None, "last 7d"
+    start_date, end_date = st.session_state.custom_range
     if end_date < start_date:
         start_date, end_date = end_date, start_date
-    st.session_state.date_range = (start_date, end_date)
     start_ts = pd.Timestamp(start_date)
     end_ts = pd.Timestamp(end_date) + pd.Timedelta(days=1)
-    since_epoch = int(start_ts.timestamp())
-    until_epoch = int(end_ts.timestamp())
-    window_desc = f"{start_date} to {end_date}"
-elif filter_mode == "All time":
-    # All time
-    since_epoch = 0
-    until_epoch = None
-    window_desc = "all time"
-else:
-    # Fallback to window if mode was changed mid-render
-    since_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=st.session_state.hours)).timestamp())
-    window_desc = f"the last {st.session_state.hours}h"
+    return int(start_ts.timestamp()), int(end_ts.timestamp()), f"{start_date} to {end_date}"
 
-with st.sidebar.container():
-    palette_options = {
-        "Aurora": {
-            "scheme": "viridis",
-            "mode": "dark",
-            "bg": "#0f1115",
-            "surface": "#161920",
-            "surface_2": "#1a1d23",
-            "surface_3": "#0d1016",
-            "surface_4": "#101722",
-            "border": "#232834",
-            "text_primary": "#f4f7ff",
-            "text_secondary": "#9aa4b5",
-            "text_muted": "#8aa4c8",
-            "accent": "#7be7d9",
-            "accent2": "#61a5ff",
-            "accent3": "#f2a85b",
-            "status_ok": "#7be7d9",
-            "status_warn": "#f2a85b",
-            "status_bad": "#ff7b7b",
-            "status_idle": "#9aa4b5",
-        },
-        "Solstice": {
-            "scheme": "plasma",
-            "mode": "dark",
-            "bg": "#121015",
-            "surface": "#1b1616",
-            "surface_2": "#1f1a1a",
-            "surface_3": "#111013",
-            "surface_4": "#171318",
-            "border": "#2a2122",
-            "text_primary": "#fdf7f0",
-            "text_secondary": "#cbbfb4",
-            "text_muted": "#b4a39a",
-            "accent": "#ffcc66",
-            "accent2": "#ff8a5c",
-            "accent3": "#6f79ff",
-            "status_ok": "#ffcc66",
-            "status_warn": "#ff8a5c",
-            "status_bad": "#ff6b6b",
-            "status_idle": "#cbbfb4",
-        },
-        "Monsoon": {
-            "scheme": "magma",
-            "mode": "dark",
-            "bg": "#0e1117",
-            "surface": "#171a22",
-            "surface_2": "#1b1f2a",
-            "surface_3": "#0c0f15",
-            "surface_4": "#121721",
-            "border": "#253046",
-            "text_primary": "#f5f7ff",
-            "text_secondary": "#a1acc4",
-            "text_muted": "#8b95b0",
-            "accent": "#5eead4",
-            "accent2": "#38bdf8",
-            "accent3": "#f472b6",
-            "status_ok": "#5eead4",
-            "status_warn": "#f472b6",
-            "status_bad": "#ff6b6b",
-            "status_idle": "#a1acc4",
-        },
-        "Ember": {
-            "scheme": "inferno",
-            "mode": "dark",
-            "bg": "#140e0b",
-            "surface": "#1d1512",
-            "surface_2": "#221a16",
-            "surface_3": "#100c0a",
-            "surface_4": "#191210",
-            "border": "#2f2420",
-            "text_primary": "#fff4e8",
-            "text_secondary": "#ccb7a8",
-            "text_muted": "#b49c8f",
-            "accent": "#f97316",
-            "accent2": "#f43f5e",
-            "accent3": "#facc15",
-            "status_ok": "#f97316",
-            "status_warn": "#facc15",
-            "status_bad": "#ff6b6b",
-            "status_idle": "#ccb7a8",
-        },
-        "Glacier": {
-            "scheme": "cividis",
-            "mode": "light",
-            "bg": "#f4f7fb",
-            "surface": "#ffffff",
-            "surface_2": "#f7f9fc",
-            "surface_3": "#e7edf5",
-            "surface_4": "#eef3f9",
-            "border": "#d5dde8",
-            "text_primary": "#101828",
-            "text_secondary": "#475467",
-            "text_muted": "#5b677a",
-            "accent": "#8fe3ff",
-            "accent2": "#4f7ecb",
-            "accent3": "#ffd39c",
-            "status_ok": "#4f7ecb",
-            "status_warn": "#ffd39c",
-            "status_bad": "#d64545",
-            "status_idle": "#475467",
-        },
-        "Harbor Fog": {
-            "scheme": "tableau10",
-            "mode": "light",
-            "bg": "#f2f4f7",
-            "surface": "#ffffff",
-            "surface_2": "#f5f7fa",
-            "surface_3": "#e6ebf2",
-            "surface_4": "#eef2f7",
-            "border": "#d0d7e2",
-            "text_primary": "#1f2937",
-            "text_secondary": "#4b5563",
-            "text_muted": "#64748b",
-            "accent": "#5fb3b3",
-            "accent2": "#3b6ea5",
-            "accent3": "#d8b26e",
-            "status_ok": "#3b6ea5",
-            "status_warn": "#d8b26e",
-            "status_bad": "#d64545",
-            "status_idle": "#4b5563",
-        },
-        "Canyon": {
-            "scheme": "set2",
-            "mode": "dark",
-            "bg": "#140f0d",
-            "surface": "#1f1714",
-            "surface_2": "#241b17",
-            "surface_3": "#100c0a",
-            "surface_4": "#191210",
-            "border": "#30241e",
-            "text_primary": "#fff1e6",
-            "text_secondary": "#c6b1a3",
-            "text_muted": "#b19a8b",
-            "accent": "#e76f51",
-            "accent2": "#f4a261",
-            "accent3": "#2a9d8f",
-            "status_ok": "#e76f51",
-            "status_warn": "#f4a261",
-            "status_bad": "#ff6b6b",
-            "status_idle": "#c6b1a3",
-        },
-        "Grove": {
-            "scheme": "set3",
-            "mode": "dark",
-            "bg": "#0f1410",
-            "surface": "#161f18",
-            "surface_2": "#1b241d",
-            "surface_3": "#0c0f0d",
-            "surface_4": "#121916",
-            "border": "#253026",
-            "text_primary": "#f2fff5",
-            "text_secondary": "#a8b8aa",
-            "text_muted": "#8fa08f",
-            "accent": "#8bc34a",
-            "accent2": "#2f855a",
-            "accent3": "#e6b566",
-            "status_ok": "#8bc34a",
-            "status_warn": "#e6b566",
-            "status_bad": "#ff6b6b",
-            "status_idle": "#a8b8aa",
-        },
-        "Signal": {
-            "scheme": "dark2",
-            "mode": "dark",
-            "bg": "#0c1216",
-            "surface": "#141b20",
-            "surface_2": "#1a2228",
-            "surface_3": "#0a0f12",
-            "surface_4": "#10171c",
-            "border": "#22303a",
-            "text_primary": "#eaf2f7",
-            "text_secondary": "#96a5b3",
-            "text_muted": "#7f8f9f",
-            "accent": "#17c3b2",
-            "accent2": "#ffcb77",
-            "accent3": "#fe6d73",
-            "status_ok": "#17c3b2",
-            "status_warn": "#ffcb77",
-            "status_bad": "#fe6d73",
-            "status_idle": "#96a5b3",
-        },
-        "Circuit": {
-            "scheme": "turbo",
-            "mode": "dark",
-            "bg": "#0b1210",
-            "surface": "#141b18",
-            "surface_2": "#1a211e",
-            "surface_3": "#0a0e0c",
-            "surface_4": "#101613",
-            "border": "#212a25",
-            "text_primary": "#ecfdf5",
-            "text_secondary": "#9bb3a8",
-            "text_muted": "#7f948a",
-            "accent": "#00d1b2",
-            "accent2": "#3a86ff",
-            "accent3": "#ffbe0b",
-            "status_ok": "#00d1b2",
-            "status_warn": "#ffbe0b",
-            "status_bad": "#ff6b6b",
-            "status_idle": "#9bb3a8",
-        },
-    }
-    theme_names = list(palette_options.keys()) + ["Custom"]
-    palette_param = st.query_params.get("palette")
-    if isinstance(palette_param, list):
-        palette_param = palette_param[0] if palette_param else None
-    if "theme_name" not in st.session_state:
-        st.session_state.theme_name = palette_param if palette_param in theme_names else "Aurora"
-    if "custom_theme" not in st.session_state:
-        st.session_state.custom_theme = palette_options["Aurora"].copy()
-        st.session_state.custom_theme["scheme"] = "tableau10"
-        st.session_state.custom_theme["mode"] = "dark"
-    if st.session_state.theme_name not in theme_names:
-        st.session_state.theme_name = "Aurora"
-    def persist_palette_choice():
-        selected = st.session_state.theme_name
-        current = st.query_params.get("palette")
-        if isinstance(current, list):
-            current = current[0] if current else None
-        if current != selected:
-            st.query_params["palette"] = selected
+since_epoch, until_epoch, window_desc = compute_time_window()
 
-    theme_name = st.sidebar.selectbox(
+filters_visible = True
+palette_options = {
+    "Aurora": {
+        "scheme": "viridis",
+        "mode": "dark",
+        "bg": "#0f1115",
+        "surface": "#161920",
+        "surface_2": "#1a1d23",
+        "surface_3": "#0d1016",
+        "surface_4": "#101722",
+        "border": "#232834",
+        "text_primary": "#f4f7ff",
+        "text_secondary": "#9aa4b5",
+        "text_muted": "#8aa4c8",
+        "accent": "#7be7d9",
+        "accent2": "#61a5ff",
+        "accent3": "#f2a85b",
+        "status_ok": "#7be7d9",
+        "status_warn": "#f2a85b",
+        "status_bad": "#ff7b7b",
+        "status_idle": "#9aa4b5",
+    },
+    "Solstice": {
+        "scheme": "plasma",
+        "mode": "dark",
+        "bg": "#121015",
+        "surface": "#1b1616",
+        "surface_2": "#1f1a1a",
+        "surface_3": "#111013",
+        "surface_4": "#171318",
+        "border": "#2a2122",
+        "text_primary": "#fdf7f0",
+        "text_secondary": "#cbbfb4",
+        "text_muted": "#b4a39a",
+        "accent": "#ffcc66",
+        "accent2": "#ff8a5c",
+        "accent3": "#6f79ff",
+        "status_ok": "#ffcc66",
+        "status_warn": "#ff8a5c",
+        "status_bad": "#ff6b6b",
+        "status_idle": "#cbbfb4",
+    },
+    "Monsoon": {
+        "scheme": "magma",
+        "mode": "dark",
+        "bg": "#0e1117",
+        "surface": "#171a22",
+        "surface_2": "#1b1f2a",
+        "surface_3": "#0c0f15",
+        "surface_4": "#121721",
+        "border": "#253046",
+        "text_primary": "#f5f7ff",
+        "text_secondary": "#a1acc4",
+        "text_muted": "#8b95b0",
+        "accent": "#5eead4",
+        "accent2": "#38bdf8",
+        "accent3": "#f472b6",
+        "status_ok": "#5eead4",
+        "status_warn": "#f472b6",
+        "status_bad": "#ff6b6b",
+        "status_idle": "#a1acc4",
+    },
+    "Ember": {
+        "scheme": "inferno",
+        "mode": "dark",
+        "bg": "#140e0b",
+        "surface": "#1d1512",
+        "surface_2": "#221a16",
+        "surface_3": "#100c0a",
+        "surface_4": "#191210",
+        "border": "#2f2420",
+        "text_primary": "#fff4e8",
+        "text_secondary": "#ccb7a8",
+        "text_muted": "#b49c8f",
+        "accent": "#f97316",
+        "accent2": "#f43f5e",
+        "accent3": "#facc15",
+        "status_ok": "#f97316",
+        "status_warn": "#facc15",
+        "status_bad": "#ff6b6b",
+        "status_idle": "#ccb7a8",
+    },
+    "Glacier": {
+        "scheme": "cividis",
+        "mode": "light",
+        "bg": "#f4f7fb",
+        "surface": "#ffffff",
+        "surface_2": "#f7f9fc",
+        "surface_3": "#e7edf5",
+        "surface_4": "#eef3f9",
+        "border": "#d5dde8",
+        "text_primary": "#101828",
+        "text_secondary": "#475467",
+        "text_muted": "#5b677a",
+        "accent": "#8fe3ff",
+        "accent2": "#4f7ecb",
+        "accent3": "#ffd39c",
+        "status_ok": "#4f7ecb",
+        "status_warn": "#ffd39c",
+        "status_bad": "#d64545",
+        "status_idle": "#475467",
+    },
+    "Harbor Fog": {
+        "scheme": "tableau10",
+        "mode": "light",
+        "bg": "#f2f4f7",
+        "surface": "#ffffff",
+        "surface_2": "#f5f7fa",
+        "surface_3": "#e6ebf2",
+        "surface_4": "#eef2f7",
+        "border": "#d0d7e2",
+        "text_primary": "#1f2937",
+        "text_secondary": "#4b5563",
+        "text_muted": "#64748b",
+        "accent": "#5fb3b3",
+        "accent2": "#3b6ea5",
+        "accent3": "#d8b26e",
+        "status_ok": "#3b6ea5",
+        "status_warn": "#d8b26e",
+        "status_bad": "#d64545",
+        "status_idle": "#4b5563",
+    },
+    "Canyon": {
+        "scheme": "set2",
+        "mode": "dark",
+        "bg": "#140f0d",
+        "surface": "#1f1714",
+        "surface_2": "#241b17",
+        "surface_3": "#100c0a",
+        "surface_4": "#191210",
+        "border": "#30241e",
+        "text_primary": "#fff1e6",
+        "text_secondary": "#c6b1a3",
+        "text_muted": "#b19a8b",
+        "accent": "#e76f51",
+        "accent2": "#f4a261",
+        "accent3": "#2a9d8f",
+        "status_ok": "#e76f51",
+        "status_warn": "#f4a261",
+        "status_bad": "#ff6b6b",
+        "status_idle": "#c6b1a3",
+    },
+    "Grove": {
+        "scheme": "set3",
+        "mode": "dark",
+        "bg": "#0f1410",
+        "surface": "#161f18",
+        "surface_2": "#1b241d",
+        "surface_3": "#0c0f0d",
+        "surface_4": "#121916",
+        "border": "#253026",
+        "text_primary": "#f2fff5",
+        "text_secondary": "#a8b8aa",
+        "text_muted": "#8fa08f",
+        "accent": "#8bc34a",
+        "accent2": "#2f855a",
+        "accent3": "#e6b566",
+        "status_ok": "#8bc34a",
+        "status_warn": "#e6b566",
+        "status_bad": "#ff6b6b",
+        "status_idle": "#a8b8aa",
+    },
+    "Signal": {
+        "scheme": "dark2",
+        "mode": "dark",
+        "bg": "#0c1216",
+        "surface": "#141b20",
+        "surface_2": "#1a2228",
+        "surface_3": "#0a0f12",
+        "surface_4": "#10171c",
+        "border": "#22303a",
+        "text_primary": "#eaf2f7",
+        "text_secondary": "#96a5b3",
+        "text_muted": "#7f8f9f",
+        "accent": "#17c3b2",
+        "accent2": "#ffcb77",
+        "accent3": "#fe6d73",
+        "status_ok": "#17c3b2",
+        "status_warn": "#ffcb77",
+        "status_bad": "#fe6d73",
+        "status_idle": "#96a5b3",
+    },
+    "Circuit": {
+        "scheme": "turbo",
+        "mode": "dark",
+        "bg": "#0b1210",
+        "surface": "#141b18",
+        "surface_2": "#1a211e",
+        "surface_3": "#0a0e0c",
+        "surface_4": "#101613",
+        "border": "#212a25",
+        "text_primary": "#ecfdf5",
+        "text_secondary": "#9bb3a8",
+        "text_muted": "#7f948a",
+        "accent": "#00d1b2",
+        "accent2": "#3a86ff",
+        "accent3": "#ffbe0b",
+        "status_ok": "#00d1b2",
+        "status_warn": "#ffbe0b",
+        "status_bad": "#ff6b6b",
+        "status_idle": "#9bb3a8",
+    },
+}
+theme_names = list(palette_options.keys()) + ["Custom"]
+palette_param = st.query_params.get("palette")
+if isinstance(palette_param, list):
+    palette_param = palette_param[0] if palette_param else None
+initial_theme = palette_param if palette_param in theme_names else "Aurora"
+if "custom_theme" not in st.session_state:
+    st.session_state.custom_theme = palette_options["Aurora"].copy()
+    st.session_state.custom_theme["scheme"] = "tableau10"
+    st.session_state.custom_theme["mode"] = "dark"
+if "theme_name" in st.session_state and st.session_state.theme_name not in theme_names:
+    st.session_state.theme_name = "Aurora"
+def persist_palette_choice():
+    selected = st.session_state.theme_name
+    current = st.query_params.get("palette")
+    if isinstance(current, list):
+        current = current[0] if current else None
+    if current != selected:
+        st.query_params["palette"] = selected
+
+if filters_visible:
+    st.sidebar.selectbox(
         "Palette",
         theme_names,
-        index=theme_names.index(st.session_state.theme_name),
+        index=theme_names.index(initial_theme),
         key="theme_name",
         on_change=persist_palette_choice,
     )
+    theme_name = st.session_state.theme_name
+    custom_theme = st.session_state.custom_theme
     if theme_name == "Custom":
-        custom_theme = st.session_state.custom_theme
         custom_theme["mode"] = st.sidebar.radio(
             "Mode",
             ["dark", "light"],
@@ -3030,154 +3378,300 @@ with st.sidebar.container():
         custom_theme["scheme"] = st.sidebar.selectbox(
             "Chart scheme",
             ["tableau10", "viridis", "plasma", "magma", "inferno", "cividis", "set2", "set3", "dark2", "turbo"],
-            index=["tableau10", "viridis", "plasma", "magma", "inferno", "cividis", "set2", "set3", "dark2", "turbo"].index(
-                custom_theme.get("scheme", "tableau10")
-            ),
+            index=[
+                "tableau10",
+                "viridis",
+                "plasma",
+                "magma",
+                "inferno",
+                "cividis",
+                "set2",
+                "set3",
+                "dark2",
+                "turbo",
+            ].index(custom_theme.get("scheme", "tableau10")),
         )
-        theme = custom_theme
-    else:
-        theme = palette_options[theme_name].copy()
+        st.session_state.custom_theme = custom_theme
+else:
+    if "theme_name" not in st.session_state:
+        st.session_state.theme_name = initial_theme
+    theme_name = st.session_state.theme_name
+    custom_theme = st.session_state.custom_theme
 
-    CHART_SCHEME = theme["scheme"]
-    accent_soft = hex_to_rgba(theme["accent"], 0.18)
-    accent_border = hex_to_rgba(theme["accent"], 0.55)
-    accent2_soft = hex_to_rgba(theme["accent2"], 0.18)
-    accent2_border = hex_to_rgba(theme["accent2"], 0.35)
-    accent2_glow = hex_to_rgba(theme["accent2"], 0.4)
-    accent3_soft = hex_to_rgba(theme["accent3"], 0.12)
-    accent3_border = hex_to_rgba(theme["accent3"], 0.35)
-    accent3_glow = hex_to_rgba(theme["accent3"], 0.6)
-    border_muted = hex_to_rgba(theme["border"], 0.55)
-    status_ok = theme["status_ok"]
-    status_warn = theme["status_warn"]
-    status_bad = theme["status_bad"]
-    status_idle = theme["status_idle"]
-    status_ok_border = hex_to_rgba(status_ok, 0.4)
-    status_warn_border = hex_to_rgba(status_warn, 0.45)
-    status_bad_border = hex_to_rgba(status_bad, 0.45)
-    status_bad_border_strong = hex_to_rgba(status_bad, 0.55)
-    status_idle_border = hex_to_rgba(status_idle, 0.35)
-    status_warn_soft = hex_to_rgba(status_warn, 0.08)
-    status_bad_soft = hex_to_rgba(status_bad, 0.08)
-    status_bad_strong = hex_to_rgba(status_bad, 0.14)
-    THEME_MODE = theme["mode"]
-    THEME_COLORS = {
-        "accent": theme["accent"],
-        "accent2": theme["accent2"],
-        "accent3": theme["accent3"],
-        "status_ok": status_ok,
-        "status_warn": status_warn,
-        "status_bad": status_bad,
-        "status_idle": status_idle,
-        "text_primary": theme["text_primary"],
-        "text_secondary": theme["text_secondary"],
-        "text_muted": theme["text_muted"],
-        "border": theme["border"],
-        "surface_3": theme["surface_3"],
-    }
-    CHART_LABEL_COLOR = theme["text_secondary"]
-    CHART_TITLE_COLOR = theme["text_primary"]
-    CHART_TEXT_COLOR = theme["text_secondary"]
-    CHART_GRID_COLOR = border_muted
-    GAUGE_COLORS = {
-        "temp": theme["accent2"],
-        "air_temp": theme["accent"],
-        "feels": theme["accent"],
-        "hum": theme["accent"],
-        "pressure": theme["accent3"],
-        "wind": theme["accent2"],
-        "gust": theme["accent3"],
-    }
-    COLLECTOR_COLORS = {
-        "airlink_collector": (theme["accent"], theme["accent2"]),
-        "tempest_collector": (theme["accent2"], theme["accent3"]),
-    }
-    WATCHDOG_COLORS = (status_warn, theme["accent3"])
-    st.markdown(
-        f"""
-        <style>
-        :root {{
-          --color-scheme: {theme['mode']};
-          --bg: {theme['bg']};
-          --surface: {theme['surface']};
-          --surface-2: {theme['surface_2']};
-          --surface-3: {theme['surface_3']};
-          --surface-4: {theme['surface_4']};
-          --border: {theme['border']};
-          --border-muted: {border_muted};
-          --text-primary: {theme['text_primary']};
-          --text-secondary: {theme['text_secondary']};
-          --text-muted: {theme['text_muted']};
-          --chart-text: {theme['text_secondary']};
-          --chart-title: {theme['text_primary']};
-          --chart-grid: {border_muted};
-          --accent: {theme['accent']};
-          --accent-2: {theme['accent2']};
-          --accent-3: {theme['accent3']};
-          --accent-soft: {accent_soft};
-          --accent-border: {accent_border};
-          --accent-2-soft: {accent2_soft};
-          --accent-2-border: {accent2_border};
-          --accent-2-glow: {accent2_glow};
-          --accent-3-soft: {accent3_soft};
-          --accent-3-border: {accent3_border};
-          --accent-3-glow: {accent3_glow};
-          --status-ok: {status_ok};
-          --status-warn: {status_warn};
-          --status-bad: {status_bad};
-          --status-idle: {status_idle};
-          --status-ok-border: {status_ok_border};
-          --status-warn-border: {status_warn_border};
-          --status-bad-border: {status_bad_border};
-          --status-bad-border-strong: {status_bad_border_strong};
-          --status-idle-border: {status_idle_border};
-          --status-warn-soft: {status_warn_soft};
-          --status-bad-soft: {status_bad_soft};
-          --status-bad-strong: {status_bad_strong};
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+if theme_name == "Custom":
+    theme = custom_theme
+else:
+    theme = palette_options[theme_name].copy()
 
-with st.sidebar.expander("Location", expanded=False):
-    if "station_lat" not in st.session_state:
-        st.session_state.station_lat = 0.0
-    if "station_lon" not in st.session_state:
-        st.session_state.station_lon = 0.0
+CHART_SCHEME = theme["scheme"]
+accent_soft = hex_to_rgba(theme["accent"], 0.18)
+accent_border = hex_to_rgba(theme["accent"], 0.55)
+accent2_soft = hex_to_rgba(theme["accent2"], 0.18)
+accent2_border = hex_to_rgba(theme["accent2"], 0.35)
+accent2_glow = hex_to_rgba(theme["accent2"], 0.4)
+accent3_soft = hex_to_rgba(theme["accent3"], 0.12)
+accent3_border = hex_to_rgba(theme["accent3"], 0.35)
+accent3_glow = hex_to_rgba(theme["accent3"], 0.6)
+border_muted = hex_to_rgba(theme["border"], 0.55)
+status_ok = theme["status_ok"]
+status_warn = theme["status_warn"]
+status_bad = theme["status_bad"]
+status_idle = theme["status_idle"]
+status_ok_border = hex_to_rgba(status_ok, 0.4)
+status_warn_border = hex_to_rgba(status_warn, 0.45)
+status_bad_border = hex_to_rgba(status_bad, 0.45)
+status_bad_border_strong = hex_to_rgba(status_bad, 0.55)
+status_idle_border = hex_to_rgba(status_idle, 0.35)
+status_warn_soft = hex_to_rgba(status_warn, 0.08)
+status_bad_soft = hex_to_rgba(status_bad, 0.08)
+status_bad_strong = hex_to_rgba(status_bad, 0.14)
+THEME_MODE = theme["mode"]
+THEME_COLORS = {
+    "accent": theme["accent"],
+    "accent2": theme["accent2"],
+    "accent3": theme["accent3"],
+    "status_ok": status_ok,
+    "status_warn": status_warn,
+    "status_bad": status_bad,
+    "status_idle": status_idle,
+    "text_primary": theme["text_primary"],
+    "text_secondary": theme["text_secondary"],
+    "text_muted": theme["text_muted"],
+    "border": theme["border"],
+    "surface_3": theme["surface_3"],
+}
+CHART_LABEL_COLOR = theme["text_secondary"]
+CHART_TITLE_COLOR = theme["text_primary"]
+CHART_TEXT_COLOR = theme["text_secondary"]
+CHART_GRID_COLOR = border_muted
+GAUGE_COLORS = {
+    "temp": theme["accent2"],
+    "air_temp": theme["accent"],
+    "feels": theme["accent"],
+    "hum": theme["accent"],
+    "pressure": theme["accent3"],
+    "wind": theme["accent2"],
+    "gust": theme["accent3"],
+}
+COLLECTOR_COLORS = {
+    "airlink_collector": (theme["accent"], theme["accent2"]),
+    "tempest_collector": (theme["accent2"], theme["accent3"]),
+}
+WATCHDOG_COLORS = (status_warn, theme["accent3"])
+st.markdown(
+    f"""
+    <style>
+    :root {{
+      --color-scheme: {theme['mode']};
+      --bg: {theme['bg']};
+      --surface: {theme['surface']};
+      --surface-2: {theme['surface_2']};
+      --surface-3: {theme['surface_3']};
+      --surface-4: {theme['surface_4']};
+      --border: {theme['border']};
+      --border-muted: {border_muted};
+      --text-primary: {theme['text_primary']};
+      --text-secondary: {theme['text_secondary']};
+      --text-muted: {theme['text_muted']};
+      --chart-text: {theme['text_secondary']};
+      --chart-title: {theme['text_primary']};
+      --chart-grid: {border_muted};
+      --accent: {theme['accent']};
+      --accent-2: {theme['accent2']};
+      --accent-3: {theme['accent3']};
+      --accent-soft: {accent_soft};
+      --accent-border: {accent_border};
+      --accent-2-soft: {accent2_soft};
+      --accent-2-border: {accent2_border};
+      --accent-2-glow: {accent2_glow};
+      --accent-3-soft: {accent3_soft};
+      --accent-3-border: {accent3_border};
+      --accent-3-glow: {accent3_glow};
+      --status-ok: {status_ok};
+      --status-warn: {status_warn};
+      --status-bad: {status_bad};
+      --status-idle: {status_idle};
+      --status-ok-border: {status_ok_border};
+      --status-warn-border: {status_warn_border};
+      --status-bad-border: {status_bad_border};
+      --status-bad-border-strong: {status_bad_border_strong};
+      --status-idle-border: {status_idle_border};
+      --status-warn-soft: {status_warn_soft};
+      --status-bad-soft: {status_bad_soft};
+      --status-bad-strong: {status_bad_strong};
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-    tempest_token = os.getenv("TEMPEST_API_TOKEN")
-    auto_location = fetch_station_location(tempest_token, TEMPEST_STATION_ID) if tempest_token else None
-    if auto_location and auto_location.get("lat") is not None and auto_location.get("lon") is not None:
-        if st.session_state.station_lat in (0.0, None):
-            st.session_state.station_lat = float(auto_location["lat"])
-        if st.session_state.station_lon in (0.0, None):
-            st.session_state.station_lon = float(auto_location["lon"])
-        st.sidebar.caption(
-            f"Using Tempest station: {auto_location.get('name', 'Tempest Station')} "
-            f"({st.session_state.station_lat:.4f}, {st.session_state.station_lon:.4f})"
+st.markdown(
+"""
+<style>
+.daily-card {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+.daily-card .daily-date { font-weight: 700; color: var(--text-primary); font-size: 0.95rem; }
+.daily-card .daily-cond { color: var(--text-secondary); margin: 2px 0 6px; }
+.daily-card .daily-temps { color: var(--text-primary); font-size: 0.9rem; }
+.daily-card .daily-temps .hi { color: var(--status-warn); }
+.daily-card .daily-temps .lo { color: var(--accent-2); }
+.daily-card .daily-precip, .daily-card .daily-sun { color: var(--text-muted); font-size: 0.85rem; }
+</style>
+""",
+unsafe_allow_html=True,
+)
+
+if "station_lat" not in st.session_state:
+    st.session_state.station_lat = None
+if "station_lon" not in st.session_state:
+    st.session_state.station_lon = None
+if "override_location_enabled" not in st.session_state:
+    st.session_state.override_location_enabled = False
+if "location_config_loaded" not in st.session_state:
+    st.session_state.location_config_loaded = False
+
+override_enabled = False
+lat_override = None
+lon_override = None
+try:
+    with closing(config_connect(DB_PATH)) as conn:
+        override_enabled = bool(get_bool(conn, "override_location_enabled") or False)
+        lat_override = get_float(conn, "station_lat_override")
+        lon_override = get_float(conn, "station_lon_override")
+except Exception:
+    override_enabled = False
+
+if not st.session_state.location_config_loaded:
+    st.session_state.override_location_enabled = override_enabled
+    if override_enabled:
+        if lat_override is not None:
+            st.session_state.station_lat = lat_override
+        if lon_override is not None:
+            st.session_state.station_lon = lon_override
+    st.session_state.location_config_loaded = True
+
+tempest_token = os.getenv("TEMPEST_API_TOKEN")
+token_present = bool(tempest_token)
+auto_location = fetch_station_location(tempest_token, TEMPEST_STATION_ID) if tempest_token else None
+auto_has_coords = auto_location and auto_location.get("lat") is not None and auto_location.get("lon") is not None
+if auto_has_coords and not st.session_state.override_location_enabled:
+    st.session_state.station_lat = float(auto_location["lat"])
+    st.session_state.station_lon = float(auto_location["lon"])
+
+if filters_visible:
+    with st.sidebar.expander("Location", expanded=False):
+        if auto_has_coords:
+            st.caption(
+                f"Using Tempest station: {auto_location.get('name', 'Tempest Station')} "
+                f"({float(auto_location['lat']):.4f}, {float(auto_location['lon']):.4f})"
+            )
+
+        override_location = st.checkbox(
+            "Override location",
+            value=st.session_state.override_location_enabled,
         )
+        st.session_state.override_location_enabled = override_location
 
-    override_location = st.sidebar.checkbox("Override location", value=False)
-    if override_location or not auto_location:
-        station_lat = st.sidebar.number_input(
+        lat_value = st.session_state.station_lat
+        lon_value = st.session_state.station_lon
+        if lat_value is None and auto_has_coords:
+            lat_value = float(auto_location["lat"])
+        if lon_value is None and auto_has_coords:
+            lon_value = float(auto_location["lon"])
+        if lat_value is None:
+            lat_value = 0.0
+        if lon_value is None:
+            lon_value = 0.0
+
+        station_lat = st.number_input(
             "Latitude",
             min_value=-90.0,
             max_value=90.0,
-            value=float(st.session_state.station_lat),
+            value=float(lat_value),
             format="%.4f",
             help="Used for sunrise/sunset times.",
+            disabled=not override_location,
         )
-        station_lon = st.sidebar.number_input(
+        station_lon = st.number_input(
             "Longitude",
             min_value=-180.0,
             max_value=180.0,
-            value=float(st.session_state.station_lon),
+            value=float(lon_value),
             format="%.4f",
             help="Used for sunrise/sunset times.",
+            disabled=not override_location,
         )
-        st.session_state.station_lat = station_lat
-        st.session_state.station_lon = station_lon
+
+        if st.button("Save location"):
+            try:
+                with closing(config_connect(DB_PATH)) as conn:
+                    set_bool(conn, "override_location_enabled", override_location)
+                    set_float(conn, "station_lat_override", station_lat)
+                    set_float(conn, "station_lon_override", station_lon)
+                st.session_state.override_location_enabled = override_location
+                if override_location:
+                    st.session_state.station_lat = station_lat
+                    st.session_state.station_lon = station_lon
+                    st.success("Saved location override.")
+                else:
+                    st.success("Saved location and disabled override.")
+            except Exception:
+                st.error("Unable to save location override.")
+
+forecast_hourly = None
+forecast_daily = None
+forecast_source = None
+forecast_tz = LOCAL_TZ
+forecast_updated = None
+forecast_status = None
+try:
+    lat_for_forecast = st.session_state.get("station_lat")
+    lon_for_forecast = st.session_state.get("station_lon")
+    api_key = os.getenv("TEMPEST_API_KEY")
+    # Prefer Open-Meteo (no key), fallback to Tempest credentials when present.
+    if lat_for_forecast is not None and lon_for_forecast is not None:
+        om_hourly, om_daily, om_status = fetch_openmeteo_forecast(
+            lat_for_forecast,
+            lon_for_forecast,
+            LOCAL_TZ,
+        )
+        if om_hourly is not None or om_daily is not None:
+            forecast_hourly = om_hourly
+            forecast_daily = om_daily
+            forecast_source = "Open-Meteo"
+            forecast_status = om_status
+            try:
+                forecast_updated = pd.Timestamp.utcnow().tz_convert(LOCAL_TZ)
+            except Exception:
+                forecast_updated = pd.Timestamp.utcnow()
+    # If no Open-Meteo data, try Tempest.
+    if (forecast_hourly is None and forecast_daily is None) and (tempest_token or api_key):
+        payload, forecast_status = fetch_tempest_forecast(
+            tempest_token,
+            TEMPEST_STATION_ID,
+            lat=lat_for_forecast,
+            lon=lon_for_forecast,
+            api_key=api_key,
+        )
+        if payload:
+            hourly_df, daily_df, forecast_tz = parse_tempest_forecast(payload, LOCAL_TZ)
+            forecast_hourly = hourly_df
+            forecast_daily = daily_df
+            forecast_source = "Tempest Better Forecast"
+            try:
+                forecast_updated = pd.Timestamp.utcnow().tz_convert(forecast_tz)
+            except Exception:
+                forecast_updated = pd.Timestamp.utcnow()
+except Exception as exc:
+    forecast_hourly = None
+    forecast_daily = None
+    forecast_status = f"Request failed: {exc}"
 
 saved_alert_config, _ = load_alert_config(DB_PATH)
 saved_alert_email = saved_alert_config.get("alert_email_to", "")
@@ -3193,100 +3687,99 @@ if "smtp_password" not in st.session_state:
 if "smtp_from" not in st.session_state:
     st.session_state.smtp_from = os.getenv("ALERT_EMAIL_FROM") or st.session_state.smtp_username
 
-with st.sidebar.expander("Alerts", expanded=False):
-    if ALERTS_WORKER_ENABLED:
-        st.caption("Background alert worker enabled; UI will not send alerts.")
-    alert_email_to = st.text_input(
-        "Alert recipient email",
-        value=st.session_state.alert_email_to,
-        help="Defaults to your Gmail address if left blank.",
-    )
-    alert_sms_to = st.text_input(
-        "Verizon SMS number",
-        value=st.session_state.alert_sms_to,
-        help="Digits only; leave blank to use VERIZON_SMS_TO from the environment.",
-    )
-    st.session_state.alert_email_to = alert_email_to.strip()
-    st.session_state.alert_sms_to = alert_sms_to.strip()
-    saved_bits = []
-    if saved_alert_email:
-        saved_bits.append(f"Email: {saved_alert_email}")
-    if saved_alert_sms:
-        saved_bits.append(f"SMS: {saved_alert_sms}")
-    if saved_bits:
-        st.caption("Saved recipients for worker: " + " | ".join(saved_bits))
-        st.caption("Stored in data/tempest.db (not committed).")
-    else:
-        st.caption("No saved recipients for the background worker yet.")
-    if st.button("Save recipients for worker"):
-        saved_keys, cleared_keys = save_alert_config(
-            DB_PATH,
-            {
-                "alert_email_to": st.session_state.alert_email_to,
-                "alert_sms_to": st.session_state.alert_sms_to,
-            },
+if filters_visible:
+    with st.sidebar.expander("Alerts", expanded=False):
+        if ALERTS_WORKER_ENABLED:
+            st.caption("Background alert worker enabled; UI will not send alerts.")
+        alert_email_to = st.text_input(
+            "Alert recipient email",
+            value=st.session_state.alert_email_to,
+            help="Defaults to your Gmail address if left blank.",
         )
-        if saved_keys:
-            st.success("Saved recipients for background alerts.")
-        elif cleared_keys:
+        alert_sms_to = st.text_input(
+            "Verizon SMS number",
+            value=st.session_state.alert_sms_to,
+            help="Digits only; leave blank to use VERIZON_SMS_TO from the environment.",
+        )
+        st.session_state.alert_email_to = alert_email_to.strip()
+        st.session_state.alert_sms_to = alert_sms_to.strip()
+        saved_bits = []
+        if saved_alert_email:
+            saved_bits.append(f"Email: {saved_alert_email}")
+        if saved_alert_sms:
+            saved_bits.append(f"SMS: {saved_alert_sms}")
+        if saved_bits:
+            st.caption("Saved recipients for worker: " + " | ".join(saved_bits))
+            st.caption("Stored in data/tempest.db (not committed).")
+        else:
+            st.caption("No saved recipients for the background worker yet.")
+        if st.button("Save recipients for worker"):
+            saved_keys, cleared_keys = save_alert_config(
+                DB_PATH,
+                {
+                    "alert_email_to": st.session_state.alert_email_to,
+                    "alert_sms_to": st.session_state.alert_sms_to,
+                },
+            )
+            if saved_keys:
+                st.success("Saved recipients for background alerts.")
+            elif cleared_keys:
+                st.success("Cleared saved recipients.")
+            else:
+                st.warning("Nothing to save yet.")
+        if saved_bits and st.button("Clear saved recipients"):
+            delete_alert_config(DB_PATH, ["alert_email_to", "alert_sms_to"])
             st.success("Cleared saved recipients.")
-        else:
-            st.warning("Nothing to save yet.")
-    if saved_bits and st.button("Clear saved recipients"):
-        delete_alert_config(DB_PATH, ["alert_email_to", "alert_sms_to"])
-        st.success("Cleared saved recipients.")
-    st.markdown("---")
-    st.caption("Email auth (Gmail SMTP: smtp.gmail.com:587 TLS). Use a Gmail app password.")
-    smtp_username = st.text_input(
-        "Gmail address",
-        value=st.session_state.smtp_username,
-    )
-    smtp_password = st.text_input(
-        "Gmail app password",
-        value=st.session_state.smtp_password,
-        type="password",
-    )
-    st.caption("Password is stored only for this session.")
-    if smtp_password:
-        sanitized_password = re.sub(r"\\s+", "", smtp_password)
-        if sanitized_password != smtp_password:
-            st.caption("Removed spaces from the app password.")
-        smtp_password = sanitized_password
-    smtp_from = st.text_input(
-        "From address",
-        value=st.session_state.smtp_from,
-        help="Defaults to the Gmail address.",
-    )
-    st.session_state.smtp_username = smtp_username.strip()
-    st.session_state.smtp_password = smtp_password
-    st.session_state.smtp_from = smtp_from.strip()
-    if st.button("Send test alert"):
-        test_temp = st.session_state.get("latest_temp_for_alerts")
-        if test_temp is None:
-            test_temp = FREEZE_WARNING_F
-        now_value = st.session_state.get("latest_now_local")
-        if now_value is None:
-            now_value = pd.Timestamp.now(tz="UTC").tz_convert(LOCAL_TZ)
-        email_sent, sms_sent, email_error, sms_error = send_test_alerts(float(test_temp), now_value)
-        if email_sent or sms_sent:
-            st.success("Test alert sent.")
-        else:
-            st.warning("Test alert not sent.")
-        if email_error:
-            st.caption(f"Email: {email_error}")
-        if sms_error:
-            st.caption(f"SMS: {sms_error}")
+        st.markdown("---")
+        st.caption("Email auth (Gmail SMTP: smtp.gmail.com:587 TLS). Use a Gmail app password.")
+        smtp_username = st.text_input(
+            "Gmail address",
+            value=st.session_state.smtp_username,
+        )
+        smtp_password = st.text_input(
+            "Gmail app password",
+            value=st.session_state.smtp_password,
+            type="password",
+        )
+        st.caption("Password is stored only for this session.")
+        if smtp_password:
+            sanitized_password = re.sub(r"\\s+", "", smtp_password)
+            if sanitized_password != smtp_password:
+                st.caption("Removed spaces from the app password.")
+            smtp_password = sanitized_password
+        smtp_from = st.text_input(
+            "From address",
+            value=st.session_state.smtp_from,
+            help="Defaults to the Gmail address.",
+        )
+        st.session_state.smtp_username = smtp_username.strip()
+        st.session_state.smtp_password = smtp_password
+        st.session_state.smtp_from = smtp_from.strip()
+        if st.button("Send test alert"):
+            test_temp = st.session_state.get("latest_temp_for_alerts")
+            if test_temp is None:
+                test_temp = FREEZE_WARNING_F
+            now_value = st.session_state.get("latest_now_local")
+            if now_value is None:
+                now_value = pd.Timestamp.now(tz="UTC").tz_convert(LOCAL_TZ)
+            email_sent, sms_sent, email_error, sms_error = send_test_alerts(float(test_temp), now_value)
+            if email_sent or sms_sent:
+                st.success("Test alert sent.")
+            else:
+                st.warning("Test alert not sent.")
+            if email_error:
+                st.caption(f"Email: {email_error}")
+            if sms_error:
+                st.caption(f"SMS: {sms_error}")
 
 render_alert_overrides_sync()
-
-gauge_container = st.sidebar.container()
 
 # ------------------------
 # Data load and transforms
 # ------------------------
 now_ts = pd.Timestamp.utcnow()
-recent_cutoff_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=1)).timestamp())
-hub_recent_cutoff_epoch = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=24)).timestamp())
+recent_cutoff_epoch = int((now_ts - pd.Timedelta(hours=1)).timestamp())
+hub_recent_cutoff_epoch = int((now_ts - pd.Timedelta(hours=24)).timestamp())
 
 tempest_until_clause = "AND obs_epoch <= :until" if until_epoch is not None else ""
 airlink_until_clause = "AND ts <= :until" if until_epoch is not None else ""
@@ -3368,13 +3861,14 @@ tempest_pressure_delta = None
 tempest_wind_delta = None
 tempest_extremes = {}
 rain_total_mm = None
+lightning_48h = 0
 
 if not tempest.empty:
     tempest["time"] = epoch_to_dt(tempest["obs_epoch"])
     tempest["air_temperature_f"] = c_to_f(tempest["air_temperature"])
     tempest["heat_index_f"] = compute_heat_index(
         tempest["air_temperature_f"],
-        tempest["relative_humidity"]
+        tempest["relative_humidity"],
     )
     tempest["pressure_inhg"] = hpa_to_inhg(tempest["station_pressure"])
     tempest["wind_speed_mph"] = mps_to_mph(tempest["wind_avg"])
@@ -3395,60 +3889,151 @@ if not tempest.empty:
         "time",
         ["air_temperature_f", "relative_humidity", "pressure_inhg", "wind_speed_mph"],
     )
-    rain_total_mm = None
     if "rain_mm" in tempest:
-        rain_total_mm = max(0.0, float(tempest["rain_mm"].iloc[-1]) - float(tempest["rain_mm"].iloc[0]))
-    lightning_strikes_window = int(tempest["lightning_strike_count"].sum()) if "lightning_strike_count" in tempest else 0
-    lightning_48h = 0
+        rain_total_mm = max(
+            0.0,
+            float(tempest["rain_mm"].iloc[-1]) - float(tempest["rain_mm"].iloc[0]),
+        )
     if "lightning_strike_count" in tempest and "obs_epoch" in tempest:
-        cutoff_48h = int((pd.Timestamp.utcnow() - pd.Timedelta(hours=48)).timestamp())
-        lightning_48h = int(tempest.loc[tempest["obs_epoch"] >= cutoff_48h, "lightning_strike_count"].sum())
-    lightning_avg_dist_km = None
-    lightning_avg_dist_mi = None
-    if "lightning_avg_dist" in tempest:
-        nonzero_dist = tempest.loc[tempest["lightning_avg_dist"] > 0, "lightning_avg_dist"]
-        if not nonzero_dist.empty:
-            lightning_avg_dist_km = float(nonzero_dist.iloc[-1])
-            lightning_avg_dist_mi = lightning_avg_dist_km * 0.621371
-else:
-    lightning_strikes_window = 0
-    lightning_48h = 0
-    lightning_avg_dist_km = None
-    lightning_avg_dist_mi = None
-lightning_active = lightning_strikes_window > 0
+        cutoff = (now_ts - pd.Timedelta(hours=48)).timestamp()
+        lightning_48h = int(tempest.loc[tempest["obs_epoch"] >= cutoff, "lightning_strike_count"].sum())
 
 # AirLink transforms
 airlink_latest = None
 aqi_share_df = pd.DataFrame()
-
 if not airlink.empty:
     airlink["time"] = epoch_to_dt(airlink["ts"])
     airlink["aqi_pm25"] = airlink["pm_2p5"].apply(compute_pm25_aqi)
-    airlink["aqi_pm25_last_1_hour"] = airlink["pm_2p5_last_1_hour"].apply(compute_pm25_aqi)
-    airlink["aqi_pm25_last_24_hours"] = airlink["pm_2p5_last_24_hours"].apply(compute_pm25_aqi)
-    airlink["aqi_pm25_nowcast"] = airlink["pm_2p5_nowcast"].apply(compute_pm25_aqi)
-
     airlink_latest = airlink.iloc[-1]
     aqi_share_df = aqi_zone_share(airlink["aqi_pm25"])
 
-# gauge highlights when window change is notable
-highlight_map = {
-    "temp": tempest_temp_delta is not None and abs(tempest_temp_delta) >= 3,
-    "hum": tempest_hum_delta is not None and abs(tempest_hum_delta) >= 8,
-    "pressure": tempest_pressure_delta is not None and abs(tempest_pressure_delta) >= 0.08,
-    "wind": tempest_wind_delta is not None and abs(tempest_wind_delta) >= 4,
-    "aqi": (not airlink.empty) and (abs(delta_over_window(airlink["aqi_pm25"])) >= 15 if "aqi_pm25" in airlink else False),
-}
-
-# Sidebar gauges using freshest data
-render_sidebar_clock(gauge_container)
-render_sidebar_gauges(
-    gauge_container,
-    tempest_latest=tempest_latest,
-    airlink_latest=airlink_latest,
-    highlights=highlight_map,
+# Current metrics
+current_temp = float(tempest_latest.air_temperature_f) if tempest_latest is not None else None
+current_feels = float(tempest_latest.heat_index_f) if tempest_latest is not None else None
+current_humidity = float(tempest_latest.relative_humidity) if tempest_latest is not None else None
+current_pressure = float(tempest_latest.pressure_inhg) if tempest_latest is not None else None
+current_wind = float(tempest_latest.wind_speed_mph) if tempest_latest is not None else None
+current_gust = (
+    float(tempest_latest.wind_gust_mph)
+    if tempest_latest is not None and "wind_gust_mph" in tempest_latest
+    else None
 )
+current_wind_deg = (
+    float(tempest_latest.wind_dir_deg)
+    if tempest_latest is not None and "wind_dir_deg" in tempest_latest
+    else None
+)
+current_wind_dir = (
+    compass_dir(tempest_latest.wind_dir_deg)
+    if tempest_latest is not None and "wind_dir_deg" in tempest_latest
+    else "--"
+)
+current_aqi = (
+    float(airlink_latest.aqi_pm25)
+    if airlink_latest is not None and pd.notna(airlink_latest.aqi_pm25)
+    else None
+)
+current_dew = (
+    float(airlink_latest.dew_point_f)
+    if airlink_latest is not None and pd.notna(airlink_latest.dew_point_f)
+    else None
+)
+current_lightning = lightning_48h
+current_battery = (
+    float(tempest_latest.battery)
+    if tempest_latest is not None and "battery" in tempest_latest
+    else None
+)
+current_solar = (
+    float(tempest_latest.solar_radiation)
+    if tempest_latest is not None and "solar_radiation" in tempest_latest
+    else None
+)
+current_uv = (
+    float(tempest_latest.uv)
+    if tempest_latest is not None and "uv" in tempest_latest
+    else None
+)
+if not tempest.empty:
+    if (current_solar is None or current_solar == 0) and "solar_radiation" in tempest:
+        solar_series = tempest["solar_radiation"].dropna()
+        solar_nonzero = solar_series[solar_series > 0]
+        if not solar_nonzero.empty:
+            current_solar = float(solar_nonzero.iloc[-1])
+    if (current_uv is None or current_uv == 0) and "uv" in tempest:
+        uv_series = tempest["uv"].dropna()
+        uv_nonzero = uv_series[uv_series > 0]
+        if not uv_nonzero.empty:
+            current_uv = float(uv_nonzero.iloc[-1])
 
+now_local = pd.Timestamp.now(tz="UTC").tz_convert(LOCAL_TZ)
+st.session_state.latest_temp_for_alerts = current_temp
+st.session_state.latest_now_local = now_local
+sun_times = None
+sunrise_local = None
+sunset_local = None
+if st.session_state.station_lat is not None and st.session_state.station_lon is not None:
+    sun_times = fetch_sun_times(
+        st.session_state.station_lat,
+        st.session_state.station_lon,
+        now_local.date().isoformat(),
+    )
+if sun_times:
+    sunrise_local = pd.to_datetime(sun_times.get("sunrise"), utc=True).tz_convert(LOCAL_TZ)
+    sunset_local = pd.to_datetime(sun_times.get("sunset"), utc=True).tz_convert(LOCAL_TZ)
+
+alert_overrides = alert_overrides_from_session()
+alert_email_to, alert_sms_to = resolve_alert_recipients(DB_PATH, overrides=alert_overrides)
+alert_state = load_alert_state(DB_PATH)
+alerts_to_send, reset_updates = determine_freeze_alerts(current_temp, alert_state)
+if reset_updates:
+    save_alert_state(DB_PATH, reset_updates)
+alert_banner_html = build_freeze_banner(current_temp, now_local)
+if alerts_to_send and not ALERTS_WORKER_ENABLED and current_temp is not None:
+    temp_value = float(current_temp)
+    for alert in alerts_to_send:
+        message_body = build_freeze_alert_message(alert["title"], temp_value, now_local)
+        subject = f"{alert['title']} - Tempest {temp_value:.1f} F"
+        email_sent = send_email(
+            subject,
+            message_body,
+            to_address=alert_email_to,
+            overrides=alert_overrides,
+        )
+        sms_sent = send_verizon_sms(
+            message_body,
+            sms_number=alert_sms_to,
+            overrides=alert_overrides,
+        )
+        if email_sent or sms_sent:
+            save_alert_state(DB_PATH, alert["state_updates"])
+
+
+def metric_text(value, fmt_str="{:.1f}", suffix=""):
+    text = fmt_value(value, fmt_str)
+    if text == "--":
+        return "--"
+    return f"{text}{suffix}"
+
+
+sun_chip_text = "--"
+if sunrise_local and sunset_local:
+    sun_chip_text = f"{fmt_time(sunrise_local)} to {fmt_time(sunset_local)}"
+wind_dir_text = current_wind_dir if current_wind_dir is not None else "--"
+
+header_html = f"""
+<div class="header-row">
+  <div class="header-title">Tempest</div>
+  <div class="metric-chip"><span class="chip-icon">T</span><span>{metric_text(current_temp, "{:.1f}", "F")}</span></div>
+  <div class="metric-chip"><span class="chip-icon">AQ</span><span>{metric_text(current_aqi, "{:.0f}")}</span></div>
+  <div class="metric-chip"><span class="chip-icon">W</span><span>{metric_text(current_wind, "{:.1f}", " mph")}</span></div>
+  <div class="metric-chip"><span class="chip-icon">P</span><span>{metric_text(current_pressure, "{:.2f}", " inHg")}</span></div>
+  <div class="metric-chip"><span class="chip-icon">Sun</span><span>{sun_chip_text}</span></div>
+</div>
+"""
+render_header_strip(header_html)
+
+# Ingest health
 ingest_sources = []
 if AIRLINK_TABLE:
     airlink_activity = recent_activity(AIRLINK_TABLE, "ts", recent_cutoff_epoch)
@@ -3469,7 +4054,6 @@ for label, activity, colors in [
     ("Tempest Hub", hub_activity, (THEME_COLORS["accent3"], THEME_COLORS["accent"])),
 ]:
     latency_minutes = minutes_since_epoch(activity["last_epoch"], now_ts)
-    # Hub pings are sparse; treat them as heartbeat instead of continuous flow.
     if label == "Tempest Hub":
         health = ingest_health(latency_minutes, fresh=60, stale=24 * 60)
     else:
@@ -3500,846 +4084,241 @@ avg_latency_text = latency_label(avg_latency_minutes) if avg_latency_minutes is 
 total_recent = sum(s["recent_count"] for s in ingest_sources if s["recent_count"] is not None)
 
 collector_statuses = build_collector_statuses(now_ts)
-render_ingest_banner(
-    ingest_sources,
-    total_recent,
-    avg_latency_text=avg_latency_text,
-    collector_statuses=collector_statuses,
+
+# Forecast charts
+forecast_chart = forecast_hourly_chart(forecast_hourly) if forecast_hourly is not None else None
+forecast_outlook = None
+if forecast_daily is not None and not forecast_daily.empty:
+    outlook_df = forecast_daily[["day_start_local", "air_temp_high", "air_temp_low"]].rename(
+        columns={"day_start_local": "time", "air_temp_high": "High", "air_temp_low": "Low"}
+    )
+    outlook_long = outlook_df.melt(id_vars=["time"], var_name="metric", value_name="value")
+    forecast_outlook = clean_chart(outlook_long, height=220, title=None)
+
+# Daily brief
+brief_rows = []
+try:
+    with sqlite3.connect(DB_PATH) as conn:
+        brief_rows = load_daily_briefs(conn)
+except Exception:
+    brief_rows = []
+
+brief_today = brief_rows[0] if brief_rows else None
+brief_yesterday = brief_rows[1] if len(brief_rows) > 1 else None
+
+rain_total_in = rain_total_mm / 25.4 if rain_total_mm is not None else None
+include_feels = st.session_state.get("show_feels", True)
+include_aqi = st.session_state.get("show_aqi", True)
+
+metrics_ctx = []
+metrics_ctx.append(
+    {
+        "icon": "T",
+        "label": "Temperature",
+        "value": metric_text(current_temp, "{:.1f}", "F"),
+        "subvalue": (
+            f"Feels {metric_text(current_feels, '{:.1f}', 'F')}"
+            if include_feels and current_feels is not None
+            else None
+        ),
+    }
 )
-
-# ------------------------
-# Tabs layout: Overview, Trends, Comparisons, Raw
-# ------------------------
-overview_payload = build_overview_payload(tempest, airlink)
-comparison_payload = build_comparison_payload(tempest, airlink)
-raw_rows = build_raw_table(tempest, airlink)
-current_temp = float(tempest_latest.air_temperature_f) if tempest_latest is not None else None
-current_feels = float(tempest_latest.heat_index_f) if tempest_latest is not None else None
-current_humidity = float(tempest_latest.relative_humidity) if tempest_latest is not None else None
-current_pressure = float(tempest_latest.pressure_inhg) if tempest_latest is not None else None
-current_wind = float(tempest_latest.wind_speed_mph) if tempest_latest is not None else None
-current_gust = float(tempest_latest.wind_gust_mph) if tempest_latest is not None and "wind_gust_mph" in tempest_latest else None
-current_wind_deg = float(tempest_latest.wind_dir_deg) if tempest_latest is not None and "wind_dir_deg" in tempest_latest else None
-current_wind_dir = compass_dir(tempest_latest.wind_dir_deg) if tempest_latest is not None and "wind_dir_deg" in tempest_latest else "--"
-current_aqi = float(airlink_latest.aqi_pm25) if airlink_latest is not None and pd.notna(airlink_latest.aqi_pm25) else None
-current_dew = float(airlink_latest.dew_point_f) if airlink_latest is not None and pd.notna(airlink_latest.dew_point_f) else None
-current_lightning = lightning_48h if "lightning_48h" in globals() else 0
-current_battery = float(tempest_latest.battery) if tempest_latest is not None and "battery" in tempest_latest else None
-current_solar = float(tempest_latest.solar_radiation) if tempest_latest is not None and "solar_radiation" in tempest_latest else None
-current_uv = float(tempest_latest.uv) if tempest_latest is not None and "uv" in tempest_latest else None
-if tempest is not None and not tempest.empty:
-    if (current_solar is None or current_solar == 0) and "solar_radiation" in tempest:
-        solar_series = tempest["solar_radiation"].dropna()
-        solar_nonzero = solar_series[solar_series > 0]
-        if not solar_nonzero.empty:
-            current_solar = float(solar_nonzero.iloc[-1])
-    if (current_uv is None or current_uv == 0) and "uv" in tempest:
-        uv_series = tempest["uv"].dropna()
-        uv_nonzero = uv_series[uv_series > 0]
-        if not uv_nonzero.empty:
-            current_uv = float(uv_nonzero.iloc[-1])
-
-now_local = pd.Timestamp.now(tz="UTC").tz_convert(LOCAL_TZ)
-st.session_state.latest_temp_for_alerts = current_temp
-st.session_state.latest_now_local = now_local
-sun_times = None
-sunrise_local = None
-sunset_local = None
-day_length = None
-if st.session_state.station_lat is not None and st.session_state.station_lon is not None:
-    sun_times = fetch_sun_times(
-        st.session_state.station_lat,
-        st.session_state.station_lon,
-        now_local.date().isoformat(),
-    )
-if sun_times:
-    sunrise_local = pd.to_datetime(sun_times.get("sunrise"), utc=True).tz_convert(LOCAL_TZ)
-    sunset_local = pd.to_datetime(sun_times.get("sunset"), utc=True).tz_convert(LOCAL_TZ)
-    if sunrise_local is not None and sunset_local is not None:
-        day_length = (sunset_local - sunrise_local).total_seconds()
-is_daytime = False
-if sunrise_local and sunset_local:
-    is_daytime = sunrise_local <= now_local <= sunset_local
-wind_angle = current_wind_deg if current_wind_deg is not None else 0
-wind_dir_text = current_wind_dir if current_wind_dir is not None else "--"
-wind_chip_text = f"{wind_dir_text} {current_wind_deg:.0f}°" if current_wind_deg is not None else wind_dir_text
-wind_speed_value = round(current_wind) if current_wind is not None else None
-wind_speed_text = f"{wind_speed_value:.0f} MPH" if wind_speed_value is not None else "-- MPH"
-aqi_value_text = f"{current_aqi:.0f}" if current_aqi is not None else "--"
-aqi_label_text = aqi_badge_label(current_aqi)
-aqi_color_value = aqi_color(current_aqi)
-aqi_tint = hex_to_rgba(aqi_color_value, 0.18)
-aqi_border = hex_to_rgba(aqi_color_value, 0.45)
-aqi_status_html = (
-    f"<span class=\"aqi-status\">{html_escape(aqi_label_text)}</span>"
-    if aqi_label_text != "--"
-    else ""
-)
-aqi_title = f"AQI {aqi_value_text} - {aqi_category(current_aqi)}"
-sun_chip_text = f"{fmt_time(sunrise_local)} · {fmt_time(sunset_local)}"
-
-alert_overrides = alert_overrides_from_session()
-alert_email_to, alert_sms_to = resolve_alert_recipients(DB_PATH, overrides=alert_overrides)
-alert_state = load_alert_state(DB_PATH)
-alerts_to_send, reset_updates = determine_freeze_alerts(current_temp, alert_state)
-if reset_updates:
-    save_alert_state(DB_PATH, reset_updates)
-alert_banner_html = build_freeze_banner(current_temp, now_local)
-if alerts_to_send and not ALERTS_WORKER_ENABLED:
-    temp_value = float(current_temp)
-    for alert in alerts_to_send:
-        message_body = build_freeze_alert_message(alert["title"], temp_value, now_local)
-        subject = f"{alert['title']} - Tempest {temp_value:.1f} F"
-        email_sent = send_email(
-            subject,
-            message_body,
-            to_address=alert_email_to,
-            overrides=alert_overrides,
-        )
-        sms_sent = send_verizon_sms(
-            message_body,
-            sms_number=alert_sms_to,
-            overrides=alert_overrides,
-        )
-        if email_sent or sms_sent:
-            save_alert_state(DB_PATH, alert["state_updates"])
-
-title_cols = st.columns([5, 1])
-with title_cols[0]:
-    st.markdown(
-        f"""
-        <div class='hero-glow'>
-          <div class='dash-title'>Tempest Air & Weather</div>
-          <div class="header-badges">
-            <div class="sun-badge">
-              <span class="{ 'sun-icon sunrise-day' if is_daytime else 'moon-icon sunrise-night' }"></span>
-              <span>{sun_chip_text}</span>
-            </div>
-            <div class="wind-flag">
-              <span class="arrow" style="transform: rotate({wind_angle}deg);">^</span>
-              <span class="wind-dir">{wind_chip_text}</span>
-              <span class="wind-speed">{wind_speed_text}</span>
-            </div>
-            <div class="aqi-badge" style="--aqi-color: {aqi_color_value}; --aqi-tint: {aqi_tint}; --aqi-border: {aqi_border};" title="{html_escape(aqi_title)}">
-              <span class="aqi-dot"></span>
-              <span class="aqi-label">AQI</span>
-              <span class="aqi-value">{aqi_value_text}</span>
-              {aqi_status_html}
-            </div>
-          </div>
-          {alert_banner_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-with title_cols[1]:
-    clock_script = """
-    <script>
-    (function() {
-      const doc = window.parent && window.parent.document;
-      if (!doc) return;
-
-      const timeZone = __LOCAL_TZ__;
-      const locale = "en-US";
-      function updateClock() {
-        const timeEl = doc.querySelector("[data-clock-time]");
-        const dateEl = doc.querySelector("[data-clock-date]");
-        const fillEl = doc.querySelector("[data-clock-fill]");
-        if (!timeEl || !dateEl) return;
-        const now = new Date();
-        let timeText;
-        let dateText;
-        try {
-          timeText = now.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: timeZone });
-          dateText = now.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric", timeZone: timeZone });
-        } catch (err) {
-          timeText = now.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", second: "2-digit" });
-          dateText = now.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" });
+if include_aqi:
+    metrics_ctx.append(
+        {
+            "icon": "AQ",
+            "label": "AQI",
+            "value": metric_text(current_aqi, "{:.0f}"),
+            "subvalue": aqi_badge_label(current_aqi),
         }
-        if (timeEl) timeEl.textContent = timeText;
-        if (dateEl) dateEl.textContent = dateText;
-        if (fillEl) {
-          const seconds = now.getSeconds() + (now.getMilliseconds() / 1000);
-          fillEl.style.width = `${Math.round((seconds / 60) * 100)}%`;
-        }
-      }
-
-      if (!window.parent.__tempestClockInterval) {
-        window.parent.__tempestClockInterval = window.parent.setInterval(updateClock, 1000);
-      }
-      updateClock();
-    })();
-    </script>
-    """
-    components.html(clock_script.replace("__LOCAL_TZ__", json.dumps(LOCAL_TZ)), height=0)
-dashboard_payload = {
-    **overview_payload,
-    **comparison_payload,
-    "current_temp": current_temp,
-    "current_humidity": current_humidity,
-    "current_wind": current_wind,
-    "current_pressure": current_pressure,
-}
-tab_labels = ["Overview"] if fast_view else ["Overview", "Trends", "Comparisons", "Raw"]
-tabs = st.tabs(tab_labels)
-
-# Overview tab
-with tabs[0]:
-    st.markdown(
-        f"""
-        <div class="overview-header">
-          <div><span class="dash-title overview-title">Overview</span></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
     )
-    if fast_view:
-        st.info("Fast view is on. Disable it in the sidebar to see Trends, Comparisons, and Raw.")
-    aqi_delta = delta_over_window(airlink["aqi_pm25"]) if airlink is not None and not airlink.empty and "aqi_pm25" in airlink else None
-
-    def metric_label(label, value, unit="", sub=None):
-        base = f"{label}: {value}{unit}" if value is not None else f"{label}: --"
-        return f"{base} ({sub})" if sub else base
-
-    metrics = [
+metrics_ctx.extend(
+    [
         {
-            "key": "temp",
-            "label": "Temperature",
-            "value": fmt_value(current_temp),
-            "unit": " F",
-            "delta": None if tempest_temp_delta is None else f"{tempest_temp_delta:+.1f} vs start",
-            "df": tempest[["time", "air_temperature_f", "heat_index_f"]].melt(
-                id_vars=["time"], value_vars=["air_temperature_f", "heat_index_f"], var_name="metric"
-            ).assign(metric=lambda d: d["metric"].map({"air_temperature_f": "Air Temperature", "heat_index_f": "Heat Index"})) if tempest is not None and not tempest.empty else None,
-        },
-        {
-            "key": "humidity",
-            "label": "Humidity",
-            "value": fmt_value(current_humidity, "{:.0f}"),
-            "unit": "%",
-            "delta": None if tempest_hum_delta is None else f"{tempest_hum_delta:+.0f} vs start",
-            "df": tempest[["time", "relative_humidity"]].rename(columns={"relative_humidity": "value"}).assign(metric="Humidity") if tempest is not None and not tempest.empty else None,
-        },
-        {
-            "key": "pressure",
-            "label": "Pressure",
-            "value": fmt_value(current_pressure, "{:.2f}"),
-            "unit": " inHg",
-            "delta": None if tempest_pressure_delta is None else f"{tempest_pressure_delta:+.2f} vs start",
-            "df": tempest[["time", "pressure_inhg"]].rename(columns={"pressure_inhg": "value"}).assign(metric="Pressure") if tempest is not None and not tempest.empty else None,
-        },
-        {
-            "key": "wind",
+            "icon": "W",
             "label": "Wind",
-            "value": fmt_value(current_wind),
-            "unit": " mph",
-            "delta": f"Gust {fmt_value(current_gust)} / {current_wind_dir}",
-            "df": tempest[["time", "wind_speed_mph", "wind_gust_mph"]].melt(
-                id_vars=["time"], value_vars=["wind_speed_mph", "wind_gust_mph"], var_name="metric", value_name="value"
-            ).assign(metric=lambda d: d["metric"].map({"wind_speed_mph": "Wind Speed", "wind_gust_mph": "Gust"})) if tempest is not None and not tempest.empty else None,
+            "value": metric_text(current_wind, "{:.1f}", " mph"),
+            "subvalue": f"Gust {metric_text(current_gust, '{:.1f}', ' mph')}" if current_gust is not None else None,
         },
         {
-            "key": "aqi",
-            "label": "AQI (PM2.5)",
-            "value": fmt_value(current_aqi, "{:.0f}"),
-            "unit": "",
-            "delta": None if aqi_delta is None else f"{aqi_delta:+.0f} vs start",
-            "df": airlink[["time", "aqi_pm25"]].rename(columns={"aqi_pm25": "value"}).assign(metric="AQI") if airlink is not None and not airlink.empty else None,
+            "icon": "H",
+            "label": "Humidity",
+            "value": metric_text(current_humidity, "{:.0f}", "%"),
+            "subvalue": f"Dew {metric_text(current_dew, '{:.1f}', 'F')}" if current_dew is not None else None,
         },
         {
-            "key": "rain",
-            "label": "Rain (window)",
-            "value": fmt_value(rain_total_mm, "{:.1f}"),
-            "unit": " mm",
-            "delta": window_desc,
-            "df": tempest[["time", "rain_mm"]].rename(columns={"rain_mm": "value"}).assign(metric="Rain") if tempest is not None and not tempest.empty and "rain_mm" in tempest else None,
+            "icon": "P",
+            "label": "Pressure",
+            "value": metric_text(current_pressure, "{:.2f}", " inHg"),
+            "subvalue": None,
         },
         {
-            "key": "lightning",
-            "label": "Lightning (48h)",
-            "value": str(current_lightning),
-            "unit": "",
-            "delta": "strikes",
-            "df": tempest[["time", "lightning_strike_count"]].rename(columns={"lightning_strike_count": "value"}).assign(metric="Lightning") if tempest is not None and not tempest.empty and "lightning_strike_count" in tempest else None,
-        },
-        {
-            "key": "battery",
-            "label": "Battery",
-            "value": fmt_value(current_battery, "{:.2f}"),
-            "unit": " V",
-            "delta": None,
-            "df": tempest[["time", "battery"]].rename(columns={"battery": "value"}).assign(metric="Battery") if tempest is not None and not tempest.empty and "battery" in tempest else None,
-        },
-        {
-            "key": "solar",
-            "label": "Solar Radiation",
-            "value": fmt_value(current_solar, "{:.0f}"),
-            "unit": " W/m2",
-            "delta": None,
-            "df": tempest[["time", "solar_radiation"]].rename(columns={"solar_radiation": "value"}).assign(metric="Solar Radiation") if tempest is not None and not tempest.empty and "solar_radiation" in tempest else None,
-        },
-        {
-            "key": "uv",
-            "label": "UV Index",
-            "value": fmt_value(current_uv, "{:.1f}"),
-            "unit": "",
-            "delta": None,
-            "df": tempest[["time", "uv"]].rename(columns={"uv": "value"}).assign(metric="UV") if tempest is not None and not tempest.empty and "uv" in tempest else None,
+            "icon": "R",
+            "label": "Rain",
+            "value": metric_text(rain_total_in, "{:.2f}", " in"),
+            "subvalue": "Window total" if rain_total_in is not None else None,
         },
     ]
+)
 
-    metrics_by_key = {m["key"]: m for m in metrics}
-    options = [m["key"] for m in metrics]
-    labels = {m["key"]: metric_label(m["label"], m["value"], m["unit"], m["delta"]) for m in metrics}
-    if "overview_order" not in st.session_state:
-        st.session_state["overview_order"] = options
+trend_series = {}
+if not tempest.empty:
+    temp_df = tempest[["time", "air_temperature_f"]].rename(columns={"air_temperature_f": "value"})
+    temp_df["metric"] = "Temperature"
+    trend_series["Temperature"] = temp_df
 
-    order_selection = st.multiselect(
-        "Overview order (top-to-bottom)",
-        options=options,
-        default=[k for k in st.session_state["overview_order"] if k in options],
-        format_func=lambda k: labels.get(k, k),
-        help="Drag to reorder or deselect metrics. Renders top-to-bottom for mobile readability.",
+    if include_feels:
+        feels_df = tempest[["time", "heat_index_f"]].rename(columns={"heat_index_f": "value"})
+        feels_df["metric"] = "Feels Like"
+        trend_series["Feels Like"] = feels_df
+
+    wind_df = tempest[["time", "wind_speed_mph"]].rename(columns={"wind_speed_mph": "value"})
+    wind_df["metric"] = "Wind"
+    trend_series["Wind"] = wind_df
+
+    if "wind_gust_mph" in tempest:
+        gust_df = tempest[["time", "wind_gust_mph"]].rename(columns={"wind_gust_mph": "value"})
+        gust_df["metric"] = "Gust"
+        trend_series["Gust"] = gust_df
+
+    pressure_df = tempest[["time", "pressure_inhg"]].rename(columns={"pressure_inhg": "value"})
+    pressure_df["metric"] = "Pressure"
+    trend_series["Pressure"] = pressure_df
+
+    humidity_df = tempest[["time", "relative_humidity"]].rename(columns={"relative_humidity": "value"})
+    humidity_df["metric"] = "Humidity"
+    trend_series["Humidity"] = humidity_df
+
+if include_aqi and not airlink.empty:
+    aqi_df = airlink[["time", "aqi_pm25"]].rename(columns={"aqi_pm25": "value"})
+    aqi_df["metric"] = "AQI"
+    trend_series["AQI"] = aqi_df
+
+trend_defaults = ["Temperature", "Wind"]
+if include_aqi:
+    trend_defaults.insert(1, "AQI")
+
+raw_tables = []
+raw_limit = 200
+
+raw_tempest = load_df(
+    f"""
+    SELECT *
+    FROM obs_st
+    WHERE obs_epoch >= :since
+    {tempest_until_clause}
+    ORDER BY obs_epoch DESC
+    LIMIT :limit
+    """,
+    {
+        "since": since_epoch,
+        "limit": raw_limit,
+        **({"until": until_epoch} if until_epoch is not None else {}),
+    },
+)
+if not raw_tempest.empty:
+    raw_tables.append({"title": "Tempest Station", "df": raw_tempest})
+
+if AIRLINK_TABLE:
+    airlink_obs_raw = load_df(
+        f"""
+        SELECT *
+        FROM {AIRLINK_TABLE}
+        WHERE ts >= :since
+        {airlink_until_clause}
+        ORDER BY ts DESC
+        LIMIT :limit
+        """,
+        {
+            "since": since_epoch,
+            "limit": raw_limit,
+            **({"until": until_epoch} if until_epoch is not None else {}),
+        },
     )
-    st.session_state["overview_order"] = order_selection
+    if not airlink_obs_raw.empty:
+        raw_tables.append({"title": "AirLink", "df": airlink_obs_raw})
 
-    st.markdown("<div class='metric-expanders'>", unsafe_allow_html=True)
-    if not order_selection:
-        st.info("Select at least one metric to display.")
-    else:
-        for key in order_selection:
-            metric = metrics_by_key.get(key)
-            if not metric:
-                continue
-            st.metric(metric["label"], metric["value"], metric["delta"])
-            if metric["df"] is not None:
-                if metric.get("key") == "aqi" and "value" in metric["df"]:
-                    avg_val = float(metric["df"]["value"].mean())
-                    base_chart = (
-                        alt.Chart(metric["df"])
-                        .mark_line(interpolate="monotone", strokeWidth=2)
-                        .encode(
-                            x=alt.X("time:T", title="Time"),
-                            y=alt.Y("value:Q", title=None),
-                            color=alt.Color(
-                                "metric:N",
-                                legend=alt.Legend(title=None),
-                                scale=alt.Scale(scheme=CHART_SCHEME),
-                            ),
-                        )
-                    )
-                    avg_df = pd.DataFrame({"avg": [avg_val], "label": [f"Avg {avg_val:.0f}"]})
-                    avg_rule = alt.Chart(avg_df).mark_rule(color=THEME_COLORS["accent3"], strokeDash=[4, 4]).encode(y="avg:Q")
-                    avg_label = (
-                        alt.Chart(avg_df)
-                        .mark_text(align="left", dx=6, dy=-6, color=THEME_COLORS["accent3"])
-                        .encode(y="avg:Q", text="label:N")
-                    )
-                    layered = (
-                        alt.layer(base_chart, avg_rule, avg_label)
-                        .properties(height=220)
-                        .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
-                        .configure_legend(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR)
-                        .configure_title(color=CHART_TITLE_COLOR)
-                        .interactive()
-                    )
-                    st.altair_chart(layered, width="stretch")
-                else:
-                    st.altair_chart(
-                        clean_chart(metric["df"], height=220, title=None),
-                        width="stretch",
-                    )
-            else:
-                st.info("No data available for this metric in the selected window.")
-    st.markdown("</div>", unsafe_allow_html=True)
+last_updated = {
+    "Tempest": latest_ts_str(tempest_latest.obs_epoch) if tempest_latest is not None else "--",
+    "AirLink": latest_ts_str(airlink_latest.ts) if airlink_latest is not None else "--",
+    "Hub": latest_ts_str(hub_activity.get("last_epoch")) if hub_activity else "--",
+}
 
+page_ctx = {
+    "forecast_chart": forecast_chart,
+    "forecast_outlook": forecast_outlook,
+    "forecast_hourly": forecast_hourly,
+    "forecast_daily": forecast_daily,
+    "forecast_source": forecast_source,
+    "forecast_status": forecast_status,
+    "forecast_updated": forecast_updated,
+    "chart_renderer": clean_chart,
+    "tz_name": LOCAL_TZ,
+    "metrics": metrics_ctx,
+    "brief_today": brief_today,
+    "brief_yesterday": brief_yesterday,
+    "trend_series": trend_series,
+    "trend_defaults": trend_defaults,
+    "tempest": tempest,
+    "airlink": airlink,
+    "raw_tables": raw_tables,
+    "health": {
+        "ingest_sources": ingest_sources,
+        "avg_latency_text": avg_latency_text,
+        "total_recent": total_recent,
+        "collector_statuses": collector_statuses,
+    },
+    "alerts_html": alert_banner_html,
+    "last_updated": last_updated,
+}
 
-    # Trends tab
-
-if not fast_view:
-    with tabs[1]:
-        st.subheader("Trends")
-        chart_specs = []
-
-        if tempest is not None and not tempest.empty:
-            def render_temp_heat():
-                temp_long = tempest.melt(
-                    id_vars=["time"],
-                    value_vars=["air_temperature_f", "heat_index_f"],
-                    var_name="metric",
+page = st.session_state.page
+if page == "home":
+    main_col, right_col = render_main_layout()
+    with main_col:
+        page_home.render(page_ctx)
+    with right_col:
+        right_col.markdown("<div class='right-rail'>", unsafe_allow_html=True)
+        if alert_banner_html:
+            right_col.markdown(alert_banner_html, unsafe_allow_html=True)
+        if metrics_ctx:
+            right_col.markdown("<div class='section-title'>Now at a glance</div>", unsafe_allow_html=True)
+            right_col.markdown("<div class='cards-grid'>", unsafe_allow_html=True)
+            for metric in metrics_ctx:
+                metric_card(
+                    metric.get("icon", ""),
+                    metric.get("label", "--"),
+                    metric.get("value", "--"),
+                    metric.get("subvalue"),
                 )
-                temp_long["metric"] = temp_long["metric"].map(
-                    {"air_temperature_f": "Air Temperature", "heat_index_f": "Heat Index"}
-                )
-                st.markdown(
-                    "<div class='chart-header'>Temperature vs Heat Index"
-                    "<span class='info-icon' title='Core temperature trend alongside perceived heat index.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(clean_chart(temp_long, height=280, title=None), width="stretch")
-
-            chart_specs.append({"key": "temp_heat", "label": "Temperature vs Heat Index", "render": render_temp_heat})
-
-            def render_wind():
-                wind_long = tempest.melt(
-                    id_vars=["time"],
-                    value_vars=["wind_speed_mph", "wind_gust_mph"],
-                    var_name="metric",
-                    value_name="value",
-                )
-                wind_long["metric"] = wind_long["metric"].map(
-                    {"wind_speed_mph": "Wind Speed", "wind_gust_mph": "Gust"}
-                )
-                st.markdown(
-                    "<div class='chart-header'>Wind Speed & Gust"
-                    "<span class='info-icon' title='Sustained wind versus gust peaks over the selected window.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(clean_chart(wind_long, height=240, title=None), width="stretch")
-
-            chart_specs.append({"key": "wind", "label": "Wind Speed & Gust", "render": render_wind})
-
-            def render_pressure():
-                pressure_long = tempest[["time", "pressure_inhg"]].rename(columns={"pressure_inhg": "value"})
-                pressure_long["metric"] = "Pressure (inHg)"
-                st.markdown(
-                    "<div class='chart-header'>Pressure Trend"
-                    "<span class='info-icon' title='Barometric pressure changes indicate approaching or clearing systems.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(clean_chart(pressure_long, height=240, title=None), width="stretch")
-
-            chart_specs.append({"key": "pressure", "label": "Pressure Trend", "render": render_pressure})
-
-            if "pressure_inhg" in tempest:
-                def render_pressure_rate():
-                    pressure_rate = tempest[["time", "pressure_inhg"]].copy()
-                    pressure_rate["hours"] = pressure_rate["time"].diff().dt.total_seconds() / 3600
-                    pressure_rate["value"] = pressure_rate["pressure_inhg"].diff() / pressure_rate["hours"]
-                    pressure_rate["metric"] = "Pressure Change (inHg/hr)"
-                    pressure_rate = pressure_rate.dropna()
-                    if pressure_rate.empty:
-                        st.info("No pressure change data in window.")
-                        return
-                    st.markdown(
-                        "<div class='chart-header'>Pressure Change Rate"
-                        "<span class='info-icon' title='Rate of pressure change per hour; faster drops can signal storms.'>i</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.altair_chart(
-                        clean_chart(pressure_rate[["time", "value", "metric"]], height=220, title=None),
-                        width="stretch",
-                    )
-
-                chart_specs.append({"key": "pressure_rate", "label": "Pressure Change Rate", "render": render_pressure_rate})
-
-            if "battery" in tempest:
-                def render_battery():
-                    battery_long = tempest[["time", "battery"]].rename(columns={"battery": "value"})
-                    battery_long["metric"] = "Battery (V)"
-                    st.markdown(
-                        "<div class='chart-header'>Battery Trend"
-                        "<span class='info-icon' title='Battery voltage trend to catch power drops early.'>i</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.altair_chart(clean_chart(battery_long, height=220, title=None), width="stretch")
-
-                chart_specs.append({"key": "battery", "label": "Battery Trend", "render": render_battery})
-
-            if "rain_mm" in tempest:
-                def render_rain():
-                    rain_long = tempest[["time", "rain_mm"]].rename(columns={"rain_mm": "value"})
-                    rain_long["metric"] = "Rain Accumulation (mm)"
-                    rain_chart = (
-                    alt.Chart(rain_long)
-                    .mark_line(interpolate="step-after")
-                    .encode(
-                        x=alt.X("time:T", title="Time"),
-                        y=alt.Y("value:Q", title="Rain (mm)"),
-                    )
-                        .properties(height=220)
-                        .interactive()
-                        .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
-                        .configure_title(color=CHART_TITLE_COLOR)
-                    )
-                    st.markdown(
-                        "<div class='chart-header'>Rain Accumulation"
-                        "<span class='info-icon' title='Cumulative rain over the selected window.'>i</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.altair_chart(rain_chart, width="stretch")
-
-                chart_specs.append({"key": "rain", "label": "Rain Accumulation", "render": render_rain})
-
-            if "wind_dir_deg" in tempest:
-                def render_wind_dir():
-                    def bin_dir(deg):
-                        if pd.isna(deg):
-                            return None
-                        return compass_dir(deg)
-
-                    dir_counts = tempest["wind_dir_deg"].apply(bin_dir).value_counts().reset_index()
-                    dir_counts.columns = ["label", "value"]
-                    if dir_counts.empty:
-                        st.info("No wind direction data in window.")
-                        return
-                    st.markdown(
-                        "<div class='chart-header'>Wind Direction Frequency"
-                        "<span class='info-icon' title='Dominant wind directions during the window.'>i</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.altair_chart(bar_chart(dir_counts, height=200, title=None, color=THEME_COLORS["accent2"]), width="stretch")
-
-                chart_specs.append({"key": "wind_dir", "label": "Wind Direction Frequency", "render": render_wind_dir})
-
-            if "solar_radiation" in tempest and "uv" in tempest:
-                def render_solar_uv():
-                    solar_uv = tempest.melt(
-                        id_vars=["time"],
-                        value_vars=["solar_radiation", "uv"],
-                        var_name="metric",
-                        value_name="value",
-                    )
-                    solar_uv["metric"] = solar_uv["metric"].map(
-                        {"solar_radiation": "Solar Radiation (W/m?)", "uv": "UV Index"}
-                    )
-                    st.markdown(
-                        "<div class='chart-header'>Solar Radiation & UV"
-                        "<span class='info-icon' title='Sunlight intensity and UV index across the window.'>i</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.altair_chart(clean_chart(solar_uv, height=240, title=None), width="stretch")
-
-                chart_specs.append({"key": "solar_uv", "label": "Solar Radiation & UV", "render": render_solar_uv})
-
-        if airlink is not None and not airlink.empty:
-            def render_aqi():
-                st.subheader("?? Outdoor ? AirLink")
-                aqi_long = airlink[["time", "aqi_pm25"]].rename(columns={"aqi_pm25": "value"})
-                aqi_long["metric"] = "AQI (PM2.5)"
-                st.markdown(
-                    "<div class='chart-header'>AQI Over Time"
-                    "<span class='info-icon' title='Tracks PM2.5 air quality index across the selected window.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(clean_chart(aqi_long, height=240, title=None), width="stretch")
-
-            chart_specs.append({"key": "aqi", "label": "AQI Over Time", "render": render_aqi})
-
-            def render_pm_components():
-                pm_long = airlink.melt(
-                    id_vars=["time"],
-                    value_vars=["pm_1", "pm_2p5", "pm_10"],
-                    var_name="metric",
-                    value_name="value",
-                )
-                pm_long["metric"] = pm_long["metric"].map({"pm_1": "PM1", "pm_2p5": "PM2.5", "pm_10": "PM10"})
-                st.markdown(
-                    "<div class='chart-header'>PM Components"
-                    "<span class='info-icon' title='Breakdown of particulate sizes to compare PM1/PM2.5/PM10.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(clean_chart(pm_long, height=240, title=None), width="stretch")
-
-            chart_specs.append({"key": "pm_components", "label": "PM Components", "render": render_pm_components})
-
-        if chart_specs:
-            options = [spec["key"] for spec in chart_specs]
-            labels = {spec["key"]: spec["label"] for spec in chart_specs}
-            saved_order = st.session_state.get("chart_order_trends", [])
-            default_order = [k for k in saved_order if k in options] + [k for k in options if k not in saved_order]
-            selection = st.multiselect(
-                "Choose chart order",
-                options=options,
-                default=default_order,
-                format_func=lambda k: labels[k],
-                help="Drag to reorder or deselect to hide charts.",
-            )
-            st.session_state["chart_order_trends"] = selection
-            for key in selection:
-                spec = next((s for s in chart_specs if s["key"] == key), None)
-                if spec:
-                    spec["render"]()
+            right_col.markdown("</div>", unsafe_allow_html=True)
         else:
-            st.info("No chartable data in this window.")
-
-if not fast_view:
-    # Comparisons tab
-    with tabs[2]:
-        st.subheader("Comparisons")
-        if tempest is not None and not tempest.empty:
-            compare = tempest.copy()
-            compare["date"] = compare["time"].dt.date
-            latest_date = compare["date"].max()
-            yesterday_date = latest_date - pd.Timedelta(days=1)
-            compare = compare[compare["date"].isin([latest_date, yesterday_date])]
-            compare["day"] = compare["date"].apply(lambda d: "Today" if d == latest_date else "Yesterday")
-            temp_compare = compare[["time", "air_temperature_f", "day"]].rename(columns={"air_temperature_f": "value"})
-            temp_compare["metric"] = temp_compare["day"]
-            st.markdown(
-                "<div class='chart-header'>Today vs Yesterday (Temp)"
-                "<span class='info-icon' title='Overlay of today vs yesterday temperature patterns.'>i</span></div>",
-                unsafe_allow_html=True,
+            right_col.info("No current metrics available.")
+        with right_col.expander("Station health", expanded=False):
+            render_ingest_banner(
+                ingest_sources,
+                total_recent,
+                avg_latency_text=avg_latency_text,
+                collector_statuses=collector_statuses,
+                target=st,
+                include_diagnostics=False,
+                title="",
             )
-            st.altair_chart(
-                clean_chart(temp_compare, height=260, title=None),
-                width="stretch",
-            )
-
-        if airlink is not None and not airlink.empty and tempest is not None and not tempest.empty:
-            merged = pd.merge_asof(
-                airlink.sort_values("time"),
-                tempest.sort_values("time"),
-                on="time",
-                direction="nearest",
-            )
-            if "temp_f" in merged:
-                temp_compare = merged[["time", "air_temperature_f", "temp_f"]].rename(
-                    columns={"air_temperature_f": "Tempest", "temp_f": "AirLink"}
-                )
-                temp_long = temp_compare.melt(id_vars=["time"], var_name="metric", value_name="value").dropna(subset=["value"])
-                if not temp_long.empty:
-                    st.markdown(
-                        "<div class='chart-header'>Tempest vs AirLink Temp"
-                        "<span class='info-icon' title='Overlay of roof (Tempest) and AirLink temperature readings.'>i</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.altair_chart(
-                        clean_chart(temp_long, height=260, title=None),
-                        width="stretch",
-                    )
-            scatter = merged[["wind_speed_mph", "aqi_pm25"]].dropna()
-            if not scatter.empty:
-                chart = (
-                    alt.Chart(scatter)
-                    .mark_circle(size=60)
-                    .encode(
-                        x=alt.X("wind_speed_mph", title="Wind Speed (mph)"),
-                        y=alt.Y("aqi_pm25", title="AQI (PM2.5)"),
-                    color=alt.Color(
-                        "aqi_pm25:Q",
-                        scale=alt.Scale(scheme="turbo"),
-                        legend=alt.Legend(title="AQI"),
-                    ),
-                )
-                    .properties(height=240)
-                    .interactive()
-                )
-                st.markdown(
-                    "<div class='chart-header'>AQI vs Wind"
-                    "<span class='info-icon' title='Shows how air quality shifts with wind speed.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(chart, width="stretch")
-
-            comfort = merged[["air_temperature_f", "relative_humidity"]].dropna()
-            if not comfort.empty:
-                def comfort_bucket(row):
-                    temp = row["air_temperature_f"]
-                    hum = row["relative_humidity"]
-                    if temp >= 78 and hum >= 60:
-                        return "Hot"
-                    if hum >= 65:
-                        return "Humid"
-                    if hum <= 35:
-                        return "Dry"
-                    return "Comfortable"
-
-                comfort = comfort.copy()
-                comfort["comfort"] = comfort.apply(comfort_bucket, axis=1)
-                comfort_chart = (
-                    alt.Chart(comfort)
-                    .mark_circle(size=50, color=THEME_COLORS["accent2"])
-                    .encode(
-                        x=alt.X("air_temperature_f", title="Temp (F)"),
-                        y=alt.Y("relative_humidity", title="Humidity (%)"),
-                    color=alt.Color(
-                        "comfort:N",
-                        scale=alt.Scale(
-                            domain=["Comfortable", "Dry", "Humid", "Hot"],
-                            range=[
-                                THEME_COLORS["status_ok"],
-                                THEME_COLORS["accent2"],
-                                THEME_COLORS["accent3"],
-                                THEME_COLORS["status_bad"],
-                            ],
-                        ),
-                        legend=alt.Legend(title="Comfort"),
-                    ),
-                )
-                    .properties(height=240)
-                    .interactive()
-                )
-                st.markdown(
-                    "<div class='chart-header'>Comfort Scatter"
-                    "<span class='info-icon' title='Clusters conditions into Comfortable/Dry/Humid/Hot buckets.'>i</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.altair_chart(comfort_chart, width="stretch")
-
-if not fast_view:
-    # Raw tab
-    with tabs[3]:
-        st.subheader("Raw")
-        storage = get_storage_stats()
-        total_size = storage["db_size"]
-        st.markdown(
-            f"""
-            <div class="gauge-block">
-              <div class="gauge-header">
-                <div>Storage Health</div>
-                <div>{fmt_bytes(total_size)} total</div>
-              </div>
-              <div class="gauge-muted">
-                Database: {fmt_bytes(storage["db_size"])}
-              </div>
-              <div class="gauge-muted">
-                Rows stored: {storage["total_rows"]:,} · Measurements: {storage["measurements"]:,}
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        last_updated_html = """<div class="card status-card">
+  <div class="section-title">Last updated</div>
+  <div class="status-line"><span>Tempest</span><span>{tempest}</span></div>
+  <div class="status-line"><span>AirLink</span><span>{airlink}</span></div>
+  <div class="status-line"><span>Hub</span><span>{hub}</span></div>
+</div>""".format(
+            tempest=last_updated["Tempest"],
+            airlink=last_updated["AirLink"],
+            hub=last_updated["Hub"],
         )
-        raw_limit = 500
-        raw_tabs = st.tabs(["Tempest Station", "AirLink", "Tempest Raw", "AirLink Raw", "Hub Raw"])
-
-        with raw_tabs[0]:
-            tempest_raw = load_df(
-                f"""
-                SELECT *
-                FROM obs_st
-                WHERE obs_epoch >= :since
-                {tempest_until_clause}
-                ORDER BY obs_epoch DESC
-                LIMIT :limit
-                """,
-                {
-                    "since": since_epoch,
-                    "limit": raw_limit,
-                    **({"until": until_epoch} if until_epoch is not None else {}),
-                },
-            )
-            if tempest_raw.empty:
-                st.info("No Tempest data in selected window.")
-            else:
-                if "obs_epoch" in tempest_raw:
-                    tempest_raw["time"] = epoch_to_dt(tempest_raw["obs_epoch"])
-                if "air_temperature" in tempest_raw:
-                    tempest_raw["air_temperature_f"] = c_to_f(tempest_raw["air_temperature"])
-                if "station_pressure" in tempest_raw:
-                    tempest_raw["pressure_inhg"] = hpa_to_inhg(tempest_raw["station_pressure"])
-                if "wind_avg" in tempest_raw:
-                    tempest_raw["wind_speed_mph"] = mps_to_mph(tempest_raw["wind_avg"])
-                if "wind_gust" in tempest_raw:
-                    tempest_raw["wind_gust_mph"] = mps_to_mph(tempest_raw["wind_gust"])
-                if "rain_accumulated" in tempest_raw:
-                    tempest_raw["rain_mm"] = tempest_raw["rain_accumulated"].astype(float)
-                st.caption(f"Showing latest {min(raw_limit, len(tempest_raw))} rows.")
-                st.dataframe(tempest_raw, width="stretch")
-
-        with raw_tabs[1]:
-            if AIRLINK_TABLE:
-                airlink_obs_raw = load_df(
-                    f"""
-                    SELECT *
-                    FROM {AIRLINK_TABLE}
-                    WHERE ts >= :since
-                    {airlink_until_clause}
-                    ORDER BY ts DESC
-                    LIMIT :limit
-                    """,
-                    {
-                        "since": since_epoch,
-                        "limit": raw_limit,
-                        **({"until": until_epoch} if until_epoch is not None else {}),
-                    },
-                )
-            else:
-                airlink_obs_raw = pd.DataFrame()
-            if airlink_obs_raw.empty:
-                st.info("No AirLink data in selected window.")
-            else:
-                if "ts" in airlink_obs_raw:
-                    airlink_obs_raw["time"] = epoch_to_dt(airlink_obs_raw["ts"])
-                st.caption(f"Showing latest {min(raw_limit, len(airlink_obs_raw))} rows.")
-                st.dataframe(airlink_obs_raw, width="stretch")
-
-        with raw_tabs[2]:
-            if RAW_EVENTS_TABLE:
-                tempest_events = load_df(
-                    f"""
-                    SELECT *
-                    FROM {RAW_EVENTS_TABLE}
-                    WHERE received_at_epoch >= :since
-                    ORDER BY received_at_epoch DESC
-                    LIMIT :limit
-                    """,
-                    {
-                        "since": since_epoch,
-                        "limit": raw_limit,
-                    },
-                )
-            else:
-                tempest_events = pd.DataFrame()
-            if tempest_events.empty:
-                st.info("No Tempest raw events in selected window.")
-            else:
-                if "received_at_epoch" in tempest_events:
-                    tempest_events["received_at_time"] = epoch_to_dt(tempest_events["received_at_epoch"])
-                st.caption(f"Showing latest {min(raw_limit, len(tempest_events))} rows.")
-                st.dataframe(tempest_events, width="stretch")
-
-        with raw_tabs[3]:
-            if AIRLINK_RAW_TABLE:
-                airlink_raw = load_df(
-                    f"""
-                    SELECT *
-                    FROM {AIRLINK_RAW_TABLE}
-                    WHERE received_at_epoch >= :since
-                    ORDER BY received_at_epoch DESC
-                    LIMIT :limit
-                    """,
-                    {
-                        "since": since_epoch,
-                        "limit": raw_limit,
-                    },
-                )
-            else:
-                airlink_raw = pd.DataFrame()
-            if airlink_raw.empty:
-                st.info("No AirLink raw payloads in selected window.")
-            else:
-                if "received_at_epoch" in airlink_raw:
-                    airlink_raw["received_at_time"] = epoch_to_dt(airlink_raw["received_at_epoch"])
-                st.caption(f"Showing latest {min(raw_limit, len(airlink_raw))} rows.")
-                st.dataframe(airlink_raw, width="stretch")
-
-        with raw_tabs[4]:
-            if RAW_EVENTS_TABLE:
-                hub_raw = load_df(
-                    f"""
-                    SELECT *
-                    FROM {RAW_EVENTS_TABLE}
-                    WHERE received_at_epoch >= :since
-                      AND (
-                        device_id = :hub_id
-                        OR message_type IN ("connection_opened", "ack")
-                      )
-                    ORDER BY received_at_epoch DESC
-                    LIMIT :limit
-                    """,
-                    {
-                        "since": since_epoch,
-                        "limit": raw_limit,
-                        "hub_id": TEMPEST_HUB_ID,
-                    },
-                )
-            else:
-                hub_raw = pd.DataFrame()
-            if hub_raw.empty:
-                st.info("No Hub raw events in selected window.")
-            else:
-                if "received_at_epoch" in hub_raw:
-                    hub_raw["received_at_time"] = epoch_to_dt(hub_raw["received_at_epoch"])
-                st.caption(f"Showing latest {min(raw_limit, len(hub_raw))} rows.")
-                st.dataframe(hub_raw, width="stretch")
+        right_col.markdown(last_updated_html, unsafe_allow_html=True)
+        right_col.markdown("</div>", unsafe_allow_html=True)
+elif page == "trends":
+    page_trends.render(page_ctx)
+elif page == "compare":
+    page_compare.render(page_ctx)
+else:
+    page_data.render(page_ctx)
