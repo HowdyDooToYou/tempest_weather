@@ -1,12 +1,14 @@
 # Tempest Weather and Air Quality Dashboard
 
-Streamlit dashboard for Tempest weather and AirLink air-quality data with live gauges, palettes, and background alerts.
+Streamlit dashboard for Tempest weather and AirLink air-quality data with live gauges, palettes, forecasts, and background services.
 
 ## Features
-- Overview, Trends, Comparisons, and Raw tabs for weather and AQI.
-- Live gauges with highlights and local time.
-- Theme palettes plus a Custom token picker.
+- Home, Trends, Compare, and Data pages for weather and AQI.
+- Live gauges with highlights and local time, plus a sticky at-a-glance strip.
+- Theme palettes plus a Custom token picker (with light/dark modes).
 - Connection and ingest health panel with collector status.
+- Forecast via Open-Meteo fallback with optional Tempest better_forecast.
+- Daily Brief (OpenAI) and Daily Email summary (NSSM services).
 - Freeze alerts via email/SMS (UI or background worker).
 
 ## Supported devices
@@ -23,6 +25,7 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 - Forecast credentials: set `TEMPEST_API_TOKEN` (preferred) or `TEMPEST_API_KEY` to enable the forecast tab/section.
 - Forecast units: `FORECAST_UNITS=imperial` (default) or `metric` to request Tempest better_forecast in your preferred units.
 - Daily Brief: optional OpenAI-powered digest written to SQLite via `src/daily_brief_worker.py`; set `OPENAI_API_KEY` (and optionally `DAILY_BRIEF_INTERVAL_MINUTES`, `DAILY_BRIEF_MODEL`). Installed as `TempestWeatherDailyBrief` NSSM service alongside UI/Alerts.
+- Daily Email: optional 7am summary email via `src/daily_email_worker.py`; set `DAILY_EMAIL_TO` (and optionally `DAILY_EMAIL_HOUR`, `DAILY_EMAIL_MINUTE`, `DAILY_EMAIL_LAT`, `DAILY_EMAIL_LON`). Installed as `TempestWeatherDailyEmail` NSSM service.
 
 ## Quick start
 1) Create a virtual environment:
@@ -109,6 +112,8 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 Services installed by the script:
 - `TempestWeatherUI` (Streamlit dashboard on port 8501)
 - `TempestWeatherAlerts` (background alerts worker)
+- `TempestWeatherDailyBrief` (OpenAI daily brief generator)
+- `TempestWeatherDailyEmail` (7am email summary)
 The install script sets `ALERTS_WORKER_ENABLED=1` for the UI service to avoid duplicate alerts.
 
 Service env checklist (NSSM/System):
@@ -119,11 +124,13 @@ Service env checklist (NSSM/System):
 - Optional: `LOCAL_TZ`, `TEMPEST_DB_PATH`, `TEMPEST_API_TOKEN`
 - Alerts worker: `ALERT_WORKER_INTERVAL_SECONDS` (service only)
 - UI service: `ALERTS_WORKER_ENABLED=1` (set by installer)
+- Daily email: `DAILY_EMAIL_TO`, `DAILY_EMAIL_HOUR`, `DAILY_EMAIL_MINUTE`, `DAILY_EMAIL_LAT`, `DAILY_EMAIL_LON`
 
 ## Usage notes
-- In Overview, toggle metrics via the accordion; charts for selected metrics render below.
-- In Trends, reorder or hide charts with the chart order multiselect.
-- Raw tabs provide table views for quick inspection.
+- Home combines forecast, daily brief, at-a-glance cards, and outlook.
+- Trends lets you reorder or hide charts with the chart order multiselect.
+- Compare offers time-to-time overlays (today vs yesterday, this week vs last week, same day last year).
+- Data provides raw tables and diagnostics for inspection.
 
 ## Development
 - Run `python -m py_compile dashboard.py src/alerting.py src/alerts_worker.py` for a quick syntax check.
