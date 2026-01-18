@@ -11,6 +11,8 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 - Daily Brief (OpenAI) and Daily Email summary (NSSM services).
 - Freeze alerts via email/SMS (UI or background worker).
 
+![Example screen shot of Home page](docs/images/home.png)
+
 ## Supported devices
 - Tempest Station (weather observations)
 - Tempest Hub (connectivity/heartbeat)
