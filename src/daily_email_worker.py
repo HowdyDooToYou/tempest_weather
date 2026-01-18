@@ -11,6 +11,7 @@ import requests
 from src.alerting import send_email
 from src.config_store import connect as config_connect
 from src.config_store import get_bool, get_float
+from src.nws_alerts import fetch_active_alerts, fetch_hwo_text, summarize_alerts, summarize_hwo
 
 DB_PATH = os.getenv("TEMPEST_DB_PATH", "data/tempest.db")
 LOCAL_TZ = os.getenv("LOCAL_TZ", "America/New_York")
@@ -341,6 +342,20 @@ def build_email_body(conn: sqlite3.Connection) -> str:
         lines.append("  - Next hours:")
         for snap in forecast_snapshots:
             lines.append(f"    - {snap}")
+
+    if lat is not None and lon is not None:
+        tz_name = tz.key if hasattr(tz, "key") else LOCAL_TZ
+        alerts = fetch_active_alerts(lat, lon, tz_name)
+        alert_lines = summarize_alerts(alerts, tz_name, max_items=3)
+        hwo_summary = summarize_hwo(fetch_hwo_text(lat, lon))
+        if alert_lines or hwo_summary:
+            lines.append("")
+            lines.append("NWS Outlooks & Alerts")
+        if hwo_summary:
+            lines.append(f"- Outlook: {hwo_summary}")
+        if alert_lines:
+            for line in alert_lines:
+                lines.append(f"- {line}")
 
     return "\n".join(lines)
 

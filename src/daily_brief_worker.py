@@ -10,6 +10,7 @@ import requests
 
 from src.config_store import connect as config_connect
 from src.config_store import get_bool, get_float
+from src.nws_alerts import fetch_active_alerts, fetch_hwo_text, summarize_alerts, summarize_hwo
 
 DB_PATH = os.getenv("TEMPEST_DB_PATH", "data/tempest.db")
 LOCAL_TZ = os.getenv("LOCAL_TZ", "America/New_York")
@@ -257,7 +258,13 @@ def compute_history_line_openmeteo(lat: float, lon: float, tz_name: str, years_b
     )
 
 
-def build_prompt(obs: pd.DataFrame, aqi: pd.DataFrame, tz: str, history_line: str | None = None):
+def build_prompt(
+    obs: pd.DataFrame,
+    aqi: pd.DataFrame,
+    tz: str,
+    history_line: str | None = None,
+    alert_lines: list[str] | None = None,
+):
     lines = []
     if not obs.empty:
         obs["air_temperature_f"] = obs["air_temperature"] * 9 / 5 + 32
@@ -276,6 +283,9 @@ def build_prompt(obs: pd.DataFrame, aqi: pd.DataFrame, tz: str, history_line: st
         lines.append(f"AQI (PM2.5) max {aqi['pm_2p5'].max():.0f}, avg {aqi['pm_2p5'].mean():.0f}.")
     if history_line:
         lines.append(f"History: {history_line}")
+    if alert_lines:
+        lines.append("Active alerts:")
+        lines.extend(alert_lines)
     return "\n".join(lines) or "No data."
 
 
@@ -357,13 +367,20 @@ def run_once():
         aqi = load_aqi(conn, since_epoch)
         lat, lon = resolve_location()
         history_line = None
+        alert_lines = []
+        hwo_summary = None
         if lat is not None and lon is not None:
             history_line = compute_history_line_meteostat(lat, lon, tz)
             if not history_line:
                 history_line = compute_history_line_openmeteo(lat, lon, tz)
+            alerts = fetch_active_alerts(lat, lon, tz)
+            alert_lines = summarize_alerts(alerts, tz, max_items=2)
+            hwo_summary = summarize_hwo(fetch_hwo_text(lat, lon))
         if not history_line:
             history_line = compute_history_line(conn, tz)
-        prompt = build_prompt(obs, aqi, tz, history_line=history_line)
+        if hwo_summary:
+            alert_lines = alert_lines + [f"Outlook: {hwo_summary}"]
+        prompt = build_prompt(obs, aqi, tz, history_line=history_line, alert_lines=alert_lines)
         brief = call_openai(prompt)
         if brief:
             save_brief(conn, now.astimezone().date().isoformat(), tz, brief)

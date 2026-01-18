@@ -31,7 +31,7 @@ body {
 }
 
 .block-container {
-  padding: 0.2rem 1.4rem 2.2rem;
+  padding: 0 1.4rem 2.2rem;
 }
 
 [data-testid="stSidebar"] > div:first-child {
@@ -97,6 +97,7 @@ body {
   background: linear-gradient(180deg, rgba(15, 17, 21, 0.92), rgba(15, 17, 21, 0.85));
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(12px);
+  margin-bottom: 0;
 }
 
 .header-row {
@@ -272,6 +273,15 @@ body {
   padding: 0 !important;
 }
 
+.st-key-scroll_state_script,
+.st-key-theme_class_script,
+.st-key-alert_override_sync {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 /* Collapse empty Streamlit containers to avoid phantom spacing. */
 .stElementContainer:empty,
 .element-container:empty,
@@ -291,6 +301,38 @@ body {
   margin-top: 6px;
 }
 
+.nws-alerts-card .section-title {
+  margin-top: 0;
+}
+
+.nws-alert {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.nws-alert:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.nws-alert-title {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.nws-alert-meta {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+.nws-alert-headline {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin-top: 4px;
+}
+
 .right-rail {
   position: sticky;
   top: 88px;
@@ -307,7 +349,7 @@ body {
   position: fixed;
   left: 10px;
   top: 120px;
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 10px;
   z-index: 110;
@@ -344,13 +386,16 @@ body {
 }
 
 body.sidebar-collapsed .block-container {
-  padding-left: calc(1.4rem + 52px);
-  padding-top: 0.2rem;
+  padding-left: calc(1.4rem + 64px);
+}
+
+body.sidebar-collapsed .header-strip {
+  padding-left: calc(16px + 64px);
 }
 
 @media (max-width: 880px) {
   body.sidebar-collapsed .block-container {
-    padding-left: calc(0.9rem + 48px);
+    padding-left: calc(0.9rem + 56px);
   }
 }
 
@@ -358,6 +403,23 @@ body.sidebar-collapsed .block-container {
   .block-container {
     padding: 0.8rem 0.9rem 1.6rem;
   }
+}
+
+body.sidebar-collapsed .floating-rail {
+  display: flex;
+}
+
+div.stElementContainer:has(.floating-rail),
+div[data-testid="stMarkdownContainer"]:has(.floating-rail) {
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+}
+
+div.stElementContainer:has(.header-strip),
+div[data-testid="stMarkdownContainer"]:has(.header-strip) {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 @media (prefers-color-scheme: light) {

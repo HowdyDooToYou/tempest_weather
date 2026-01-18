@@ -44,6 +44,7 @@ from src.config_store import (
     set_float,
 )
 from src.forecast import parse_tempest_forecast
+from src.nws_alerts import fetch_active_alerts, fetch_hwo_text, format_alerts_html, format_hwo_html
 
 DB_PATH = os.getenv("TEMPEST_DB_PATH", "data/tempest.db")
 TEMPEST_STATION_ID = 475329
@@ -163,6 +164,7 @@ state_script = """
 components.html(
     state_script,
     height=0,
+    key="scroll_state_script",
 )
 
 components.html(
@@ -192,14 +194,21 @@ components.html(
       }
       applyThemeClass();
       applySidebarClass();
+      if (window.parent.ResizeObserver) {
+        const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+        if (sidebar) {
+          const observer = new window.parent.ResizeObserver(() => applySidebarClass());
+          observer.observe(sidebar);
+        }
+      }
       window.parent.setInterval(() => {
         applyThemeClass();
-        applySidebarClass();
       }, 1500);
     })();
     </script>
     """,
     height=0,
+    key="theme_class_script",
 )
 
 # Navigation/page state
@@ -1211,6 +1220,7 @@ def render_alert_overrides_sync():
         </script>
         """,
         height=0,
+        key="alert_override_sync",
     )
 
 
@@ -1333,6 +1343,16 @@ def fetch_station_location(token, station_id):
     except Exception:
         return None
     return None
+
+
+@st.cache_data(ttl=300)
+def fetch_nws_alerts_cached(lat, lon, tz_name):
+    return fetch_active_alerts(lat, lon, tz_name)
+
+
+@st.cache_data(ttl=900)
+def fetch_nws_hwo_cached(lat, lon):
+    return fetch_hwo_text(lat, lon)
 
 
 def fmt_bytes(size_bytes):
@@ -3346,7 +3366,9 @@ if "custom_theme" not in st.session_state:
     st.session_state.custom_theme = palette_options["Aurora"].copy()
     st.session_state.custom_theme["scheme"] = "tableau10"
     st.session_state.custom_theme["mode"] = "dark"
-if "theme_name" in st.session_state and st.session_state.theme_name not in theme_names:
+if "theme_name" not in st.session_state:
+    st.session_state.theme_name = initial_theme
+elif st.session_state.theme_name not in theme_names:
     st.session_state.theme_name = "Aurora"
 def persist_palette_choice():
     selected = st.session_state.theme_name
@@ -3360,7 +3382,6 @@ if filters_visible:
     st.sidebar.selectbox(
         "Palette",
         theme_names,
-        index=theme_names.index(initial_theme),
         key="theme_name",
         on_change=persist_palette_choice,
     )
@@ -3407,8 +3428,6 @@ if filters_visible:
         )
         st.session_state.custom_theme = custom_theme
 else:
-    if "theme_name" not in st.session_state:
-        st.session_state.theme_name = initial_theme
     theme_name = st.session_state.theme_name
     custom_theme = st.session_state.custom_theme
 
@@ -3644,6 +3663,12 @@ forecast_source = None
 forecast_tz = LOCAL_TZ
 forecast_updated = None
 forecast_status = None
+lat_for_forecast = None
+lon_for_forecast = None
+nws_alerts = []
+nws_alerts_html = None
+nws_hwo = None
+nws_hwo_html = None
 try:
     lat_for_forecast = st.session_state.get("station_lat")
     lon_for_forecast = st.session_state.get("station_lon")
@@ -3686,6 +3711,12 @@ except Exception as exc:
     forecast_hourly = None
     forecast_daily = None
     forecast_status = f"Request failed: {exc}"
+
+if lat_for_forecast is not None and lon_for_forecast is not None:
+    nws_alerts = fetch_nws_alerts_cached(lat_for_forecast, lon_for_forecast, LOCAL_TZ)
+    nws_alerts_html = format_alerts_html(nws_alerts, LOCAL_TZ)
+    nws_hwo = fetch_nws_hwo_cached(lat_for_forecast, lon_for_forecast)
+    nws_hwo_html = format_hwo_html(nws_hwo, LOCAL_TZ)
 
 saved_alert_config, _ = load_alert_config(DB_PATH)
 saved_alert_email = saved_alert_config.get("alert_email_to", "")
@@ -4295,6 +4326,10 @@ if page == "home":
         right_col.markdown("<div class='right-rail'>", unsafe_allow_html=True)
         if alert_banner_html:
             right_col.markdown(alert_banner_html, unsafe_allow_html=True)
+        if nws_alerts_html:
+            right_col.markdown(nws_alerts_html, unsafe_allow_html=True)
+        if nws_hwo_html:
+            right_col.markdown(nws_hwo_html, unsafe_allow_html=True)
         if metrics_ctx:
             right_col.markdown("<div class='section-title'>Now at a glance</div>", unsafe_allow_html=True)
             right_col.markdown("<div class='cards-grid'>", unsafe_allow_html=True)

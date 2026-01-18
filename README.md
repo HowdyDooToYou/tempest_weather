@@ -9,6 +9,7 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 - Connection and ingest health panel with collector status.
 - Forecast via Open-Meteo fallback with optional Tempest better_forecast.
 - Daily Brief (OpenAI) and Daily Email summary (NSSM services).
+- NWS alerts and outlooks (HWO) displayed in UI and optionally delivered via email/SMS.
 - Freeze alerts via email/SMS (UI or background worker).
 
 ![Example screen shot of Home page](docs/images/home.png)
@@ -129,6 +130,7 @@ Service env checklist (NSSM/System):
 - UI service: `ALERTS_WORKER_ENABLED=1` (set by installer)
 - Daily brief: `DAILY_BRIEF_LAT`, `DAILY_BRIEF_LON` (optional location for Meteostat history)
 - Daily email: `DAILY_EMAIL_TO`, `DAILY_EMAIL_HOUR`, `DAILY_EMAIL_MINUTE`, `DAILY_EMAIL_LAT`, `DAILY_EMAIL_LON`
+- NWS alerts: `NWS_USER_AGENT` (required by api.weather.gov), `NWS_ALERTS_ENABLED`, `NWS_HWO_NOTIFY`, `NWS_ZONE` (optional override like `GAZ041`)
 
 ## Usage notes
 - Home combines forecast, daily brief, at-a-glance cards, and outlook.
