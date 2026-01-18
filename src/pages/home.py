@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import streamlit as st
 
@@ -29,6 +31,18 @@ def render(ctx):
         meta_bits.append(f"Status: {forecast_status}")
 
     st.markdown("<div class='section-title'>Daily brief</div>", unsafe_allow_html=True)
+    if st.button("Refresh brief", key="refresh_brief"):
+        if not os.getenv("OPENAI_API_KEY"):
+            st.error("OPENAI_API_KEY is not set for the UI process. Set it and restart the UI service.")
+        else:
+            with st.spinner("Refreshing brief..."):
+                try:
+                    from src.daily_brief_worker import run_once
+                    run_once()
+                    st.success("Daily brief refreshed.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Unable to refresh the brief: {exc}")
     brief_today = ctx.get("brief_today")
     brief_yesterday = ctx.get("brief_yesterday")
     show_yesterday = False

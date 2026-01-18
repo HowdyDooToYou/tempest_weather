@@ -214,6 +214,10 @@ if isinstance(query_page, list):
     query_page = query_page[0] if query_page else None
 if query_page in valid_pages:
     st.session_state.page = query_page
+    try:
+        del st.query_params["page"]
+    except Exception:
+        pass
 
 # ------------------------
 # Theming
@@ -3102,7 +3106,7 @@ def render_icon_rail(active_page: str):
         active_class = "active" if key == active_page else ""
         href = build_link(key)
         buttons.append(
-            f"<a class=\"icon-btn {active_class}\" href=\"{href}\" title=\"{title}\">{label}</a>"
+            f"<a class=\"icon-btn {active_class}\" href=\"{href}\" title=\"{title}\" target=\"_self\" rel=\"noreferrer\">{label}</a>"
         )
     st.markdown(
         "<div class='floating-rail'>" + "".join(buttons) + "</div>",
