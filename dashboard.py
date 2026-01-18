@@ -184,8 +184,18 @@ components.html(
         }
         doc.body.classList.toggle("theme-light", isLight);
       }
+      function applySidebarClass() {
+        const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+        if (!sidebar) return;
+        const width = sidebar.getBoundingClientRect().width || 0;
+        doc.body.classList.toggle("sidebar-collapsed", width < 80);
+      }
       applyThemeClass();
-      window.parent.setInterval(applyThemeClass, 1500);
+      applySidebarClass();
+      window.parent.setInterval(() => {
+        applyThemeClass();
+        applySidebarClass();
+      }, 1500);
     })();
     </script>
     """,

@@ -31,7 +31,7 @@ body {
 }
 
 .block-container {
-  padding: 1.2rem 1.4rem 2.2rem;
+  padding: 0.2rem 1.4rem 2.2rem;
 }
 
 [data-testid="stSidebar"] > div:first-child {
@@ -93,7 +93,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 90;
-  padding: 12px 16px;
+  padding: 6px 16px;
   background: linear-gradient(180deg, rgba(15, 17, 21, 0.92), rgba(15, 17, 21, 0.85));
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(12px);
@@ -249,6 +249,40 @@ body {
   margin: 12px 0 8px;
 }
 
+.block-container > div:first-child {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.block-container > div:first-child > div:first-child {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.block-container > div > div:nth-child(9) {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.st-key-controls_autorefresh,
+.st-key-controls_autorefresh > div {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Collapse empty Streamlit containers to avoid phantom spacing. */
+.stElementContainer:empty,
+.element-container:empty,
+.block-container > div:empty,
+.block-container > div > div:empty {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 .status-card .status-line {
   display: flex;
   justify-content: space-between;
@@ -306,6 +340,17 @@ body {
   .floating-rail {
     top: 96px;
     left: 6px;
+  }
+}
+
+body.sidebar-collapsed .block-container {
+  padding-left: calc(1.4rem + 52px);
+  padding-top: 0.2rem;
+}
+
+@media (max-width: 880px) {
+  body.sidebar-collapsed .block-container {
+    padding-left: calc(0.9rem + 48px);
   }
 }
 

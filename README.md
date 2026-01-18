@@ -19,12 +19,13 @@ Streamlit dashboard for Tempest weather and AirLink air-quality data with live g
 ## Requirements
 - Python 3.10+ (tested on 3.12)
 - Dependencies: `streamlit`, `streamlit-autorefresh`, `pandas`, `altair`, `requests`
+- Optional: `meteostat` for "On this day" historical context in Daily Briefs.
 - Tempest/AirLink data available in `data/tempest.db` (and related tables)
 - Optional env: `CONTROL_REFRESH_SECONDS` (default 120; uses `AUTO_REFRESH_SECONDS` as fallback) to set the sidebar auto-refresh cadence without rerendering the main dashboard content.
 - Optional env: `FORECAST_REFRESH_MINUTES` (default 30) to set how often Tempest better_forecast data is refreshed.
 - Forecast credentials: set `TEMPEST_API_TOKEN` (preferred) or `TEMPEST_API_KEY` to enable the forecast tab/section.
 - Forecast units: `FORECAST_UNITS=imperial` (default) or `metric` to request Tempest better_forecast in your preferred units.
-- Daily Brief: optional OpenAI-powered digest written to SQLite via `src/daily_brief_worker.py`; set `OPENAI_API_KEY` (and optionally `DAILY_BRIEF_INTERVAL_MINUTES`, `DAILY_BRIEF_MODEL`). Installed as `TempestWeatherDailyBrief` NSSM service alongside UI/Alerts.
+- Daily Brief: optional OpenAI-powered digest written to SQLite via `src/daily_brief_worker.py`; set `OPENAI_API_KEY` (and optionally `DAILY_BRIEF_INTERVAL_MINUTES`, `DAILY_BRIEF_MODEL`). Uses Meteostat when available and falls back to Open-Meteo archive for "On this day" context when location is set. Installed as `TempestWeatherDailyBrief` NSSM service alongside UI/Alerts.
 - Daily Email: optional 7am summary email via `src/daily_email_worker.py`; set `DAILY_EMAIL_TO` (and optionally `DAILY_EMAIL_HOUR`, `DAILY_EMAIL_MINUTE`, `DAILY_EMAIL_LAT`, `DAILY_EMAIL_LON`). Installed as `TempestWeatherDailyEmail` NSSM service.
 
 ## Quick start
@@ -124,6 +125,7 @@ Service env checklist (NSSM/System):
 - Optional: `LOCAL_TZ`, `TEMPEST_DB_PATH`, `TEMPEST_API_TOKEN`
 - Alerts worker: `ALERT_WORKER_INTERVAL_SECONDS` (service only)
 - UI service: `ALERTS_WORKER_ENABLED=1` (set by installer)
+- Daily brief: `DAILY_BRIEF_LAT`, `DAILY_BRIEF_LON` (optional location for Meteostat history)
 - Daily email: `DAILY_EMAIL_TO`, `DAILY_EMAIL_HOUR`, `DAILY_EMAIL_MINUTE`, `DAILY_EMAIL_LAT`, `DAILY_EMAIL_LON`
 
 ## Usage notes

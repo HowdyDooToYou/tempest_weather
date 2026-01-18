@@ -133,6 +133,8 @@ function Invoke-EnvReport {
         "TEMPEST_DB_PATH",
         "TEMPEST_API_TOKEN",
         "ALERT_WORKER_INTERVAL_SECONDS",
+        "DAILY_BRIEF_LAT",
+        "DAILY_BRIEF_LON",
         "DAILY_EMAIL_TO",
         "DAILY_EMAIL_HOUR",
         "DAILY_EMAIL_MINUTE",
