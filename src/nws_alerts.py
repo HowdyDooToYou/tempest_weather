@@ -1,3 +1,5 @@
+import hashlib
+import html
 import os
 import re
 from datetime import datetime
@@ -33,6 +35,25 @@ def _strip_html(text: str | None) -> str:
         return ""
     clean = re.sub(r"<[^>]+>", "", text)
     return " ".join(clean.split())
+
+
+def _strip_html_preserve_lines(text: str | None) -> str:
+    if not text:
+        return ""
+    cleaned = re.sub(r"(?i)<br\\s*/?>", "\n", text)
+    cleaned = re.sub(r"(?i)</p>", "\n", cleaned)
+    cleaned = re.sub(r"<[^>]+>", "", cleaned)
+    lines = []
+    for line in cleaned.splitlines():
+        line = " ".join(line.split())
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def _format_hwo_full_html(text: str) -> str:
+    escaped = html.escape(text)
+    return escaped.replace("\n", "<br>")
 
 
 def resolve_alert_zones(lat: float, lon: float) -> list[str]:
@@ -98,6 +119,64 @@ def _fetch_alerts_by_params(params: dict) -> list[dict]:
     return alerts
 
 
+def _extract_pre_text(html_text: str) -> str | None:
+    match = re.search(r"<pre[^>]*>(.*?)</pre>", html_text, re.S | re.I)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _parse_hwo_issued(text: str) -> str | None:
+    for line in text.splitlines():
+        line = line.strip()
+        if re.search(r"\b\d{3,4}\s[AP]M\s[A-Z]{3}\s\w{3}\s\w{3}\s\d{1,2}\s\d{4}\b", line):
+            return line
+    return None
+
+
+def _fetch_hwo_fallback(
+    lat: float,
+    lon: float,
+    forecast_zone: str | None,
+    county_zone: str | None,
+    cwa: str | None,
+) -> dict | None:
+    headers = {"User-Agent": _user_agent(), "Accept": "text/html"}
+    params = {
+        "warnzone": forecast_zone or "",
+        "warncounty": county_zone or "",
+        "firewxzone": forecast_zone or "",
+        "local_place1": "",
+        "product1": "Hazardous Weather Outlook",
+        "lat": f"{lat:.3f}",
+        "lon": f"{lon:.3f}",
+    }
+    try:
+        resp = requests.get(
+            "https://forecast.weather.gov/showsigwx.php",
+            headers=headers,
+            params=params,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        text = _extract_pre_text(resp.text or "")
+    except Exception:
+        return None
+    if not text:
+        return None
+    issued = _parse_hwo_issued(text)
+    digest = hashlib.md5(text.encode("utf-8")).hexdigest()
+    product_id = f"hwo-{cwa or forecast_zone or 'zone'}-{digest[:10]}"
+    return {
+        "id": product_id,
+        "issued": issued,
+        "text": text,
+        "headline": "Hazardous Weather Outlook",
+        "cwa": cwa,
+        "source": "forecast.weather.gov",
+    }
+
+
 def fetch_hwo_text(lat: float, lon: float) -> dict | None:
     headers = {"User-Agent": _user_agent(), "Accept": "application/geo+json"}
     try:
@@ -114,6 +193,8 @@ def fetch_hwo_text(lat: float, lon: float) -> dict | None:
     if not props:
         return None
     cwa = props.get("cwa")
+    forecast_zone = _extract_zone_id(props.get("forecastZone"))
+    county_zone = _extract_zone_id(props.get("county"))
     if not cwa:
         return None
 
@@ -126,7 +207,7 @@ def fetch_hwo_text(lat: float, lon: float) -> dict | None:
         return None
     items = prod_payload.get("products") if isinstance(prod_payload, dict) else None
     if not items:
-        return None
+        return _fetch_hwo_fallback(lat, lon, forecast_zone, county_zone, cwa)
     latest = items[0]
     product_id = latest.get("id")
     issued = latest.get("issuanceTime")
@@ -151,10 +232,56 @@ def fetch_hwo_text(lat: float, lon: float) -> dict | None:
 def summarize_hwo(hwo: dict | None, max_chars: int = 320) -> str | None:
     if not hwo:
         return None
-    text = _strip_html(hwo.get("text", ""))
+    text = _strip_html_preserve_lines(hwo.get("text", ""))
     if not text:
         return None
-    return text[:max_chars].rstrip() + ("..." if len(text) > max_chars else "")
+    sections = _extract_hwo_sections(text)
+    if not sections:
+        clean = " ".join(text.split())
+        return clean[:max_chars].rstrip() + ("..." if len(clean) > max_chars else "")
+    summary_bits = []
+    for label, lines in sections:
+        if not lines:
+            continue
+        block = " ".join(line.strip() for line in lines if line.strip())
+        if not block:
+            continue
+        summary_bits.append(f"{label}: {block}")
+    if not summary_bits:
+        return None
+    summary = " ".join(summary_bits)
+    summary = " ".join(summary.split())
+    return summary[:max_chars].rstrip() + ("..." if len(summary) > max_chars else "")
+
+
+def _extract_hwo_sections(text: str) -> list[tuple[str, list[str]]]:
+    sections = []
+    current_label = None
+    current_lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("$$"):
+            break
+        if line.startswith("."):
+            if current_label and current_lines:
+                sections.append((current_label, current_lines))
+            if line.startswith(".DAY ONE"):
+                current_label = "Today"
+            elif line.startswith(".DAYS TWO"):
+                current_label = "Next 7 days"
+            elif line.startswith(".SPOTTER"):
+                current_label = "Spotter info"
+            else:
+                current_label = "Outlook"
+            current_lines = []
+            continue
+        if current_label:
+            current_lines.append(line)
+    if current_label and current_lines:
+        sections.append((current_label, current_lines))
+    return sections
 
 
 def format_hwo_html(hwo: dict | None, tz_name: str) -> str | None:
@@ -162,10 +289,19 @@ def format_hwo_html(hwo: dict | None, tz_name: str) -> str | None:
         return None
     headline = hwo.get("headline") or "Hazardous Weather Outlook"
     issued = _fmt_time(hwo.get("issued"), tz_name) if hwo.get("issued") else None
-    summary = summarize_hwo(hwo, max_chars=360)
+    summary = summarize_hwo(hwo, max_chars=260)
     if not summary:
         return None
     issued_line = f"<div class=\"nws-alert-meta\">Issued {issued}</div>" if issued else ""
+    full_text = _strip_html_preserve_lines(hwo.get("text", ""))
+    details_html = ""
+    if full_text:
+        details_html = (
+            "<details class=\"nws-alert-details\">"
+            "<summary>Read full outlook</summary>"
+            f"<div class=\"nws-alert-full\">{_format_hwo_full_html(full_text)}</div>"
+            "</details>"
+        )
     return (
         "<div class=\"card status-card nws-alerts-card\">"
         f"<div class=\"section-title\">NWS Outlooks</div>"
@@ -173,6 +309,7 @@ def format_hwo_html(hwo: dict | None, tz_name: str) -> str | None:
         f"<div class=\"nws-alert-title\">{headline}</div>"
         f"{issued_line}"
         f"<div class=\"nws-alert-headline\">{summary}</div>"
+        f"{details_html}"
         f"</div>"
         "</div>"
     )

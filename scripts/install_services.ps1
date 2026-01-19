@@ -77,7 +77,10 @@ $additionalEnvNames = @(
     "DAILY_EMAIL_MINUTE",
     "DAILY_EMAIL_LAT",
     "DAILY_EMAIL_LON",
-    "TEMPEST_STATION_ID"
+    "TEMPEST_STATION_ID",
+    "AQI_SMOKE_CLEAR_HOURS",
+    "AQI_SMOKE_CLEAR_MAX",
+    "AQI_SMOKE_CLEAR_MIN_COUNT"
 )
 $sharedEnvLines = @()
 foreach ($envName in $additionalEnvNames) {

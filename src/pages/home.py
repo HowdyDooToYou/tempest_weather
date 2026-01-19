@@ -1,4 +1,5 @@
 import os
+import re
 
 import pandas as pd
 import streamlit as st
@@ -12,6 +13,7 @@ def render(ctx):
     forecast_source = ctx.get("forecast_source")
     forecast_status = ctx.get("forecast_status")
     forecast_updated = ctx.get("forecast_updated")
+    smoke_event_active = bool(ctx.get("aqi_smoke_event_enabled", False))
 
     def forecast_body():
         if forecast_chart is not None:
@@ -50,13 +52,25 @@ def render(ctx):
         show_yesterday = st.toggle("Show yesterday", value=False)
     brief = brief_yesterday if show_yesterday else brief_today
     if brief:
-        bullets = "".join(f"<li>{item}</li>" for item in brief.get("bullets", []))
+        headline = brief.get("headline", "")
+        if smoke_event_active and re.search(r"\b(aqi|pm2\.?5|air quality)\b", headline, re.IGNORECASE):
+            headline = "Daily brief"
+        bullets_list = brief.get("bullets", [])
+        if smoke_event_active:
+            bullets_list = [
+                item
+                for item in bullets_list
+                if not re.search(r"\b(aqi|pm2\.?5|air quality)\b", item, re.IGNORECASE)
+            ]
+        bullets = "".join(f"<li>{item}</li>" for item in bullets_list)
         tomorrow = brief.get("tomorrow")
+        if smoke_event_active and tomorrow and re.search(r"\b(aqi|pm2\.?5|air quality)\b", tomorrow, re.IGNORECASE):
+            tomorrow = None
         generated_at = brief.get("generated_at") or ""
         st.markdown(
             f"""
             <div class="card brief-card">
-              <div class="section-title">{brief.get('headline','')}</div>
+              <div class="section-title">{headline}</div>
               <ul>{bullets}</ul>
               {f"<div class='metric-sub'>Tomorrow: {tomorrow}</div>" if tomorrow else ""}
               {f"<div class='metric-sub'>Last generated {generated_at}</div>" if generated_at else ""}

@@ -143,7 +143,10 @@ function Invoke-EnvReport {
         "DAILY_EMAIL_HOUR",
         "DAILY_EMAIL_MINUTE",
         "DAILY_EMAIL_LAT",
-        "DAILY_EMAIL_LON"
+        "DAILY_EMAIL_LON",
+        "AQI_SMOKE_CLEAR_HOURS",
+        "AQI_SMOKE_CLEAR_MAX",
+        "AQI_SMOKE_CLEAR_MIN_COUNT"
     )
     foreach ($svc in (Get-TargetServices $Target)) {
         $names = Get-EnvNames $svc.Name

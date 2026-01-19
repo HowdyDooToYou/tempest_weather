@@ -108,6 +108,9 @@ FREEZE_WARNING_F = float(os.getenv("FREEZE_WARNING_F", "32"))
 DEEP_FREEZE_F = float(os.getenv("DEEP_FREEZE_F", "18"))
 FREEZE_RESET_F = float(os.getenv("FREEZE_RESET_F", "34"))
 ALERTS_WORKER_ENABLED = os.getenv("ALERTS_WORKER_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+AQI_SMOKE_CLEAR_HOURS = int(os.getenv("AQI_SMOKE_CLEAR_HOURS", "6"))
+AQI_SMOKE_CLEAR_MAX = float(os.getenv("AQI_SMOKE_CLEAR_MAX", "50"))
+AQI_SMOKE_CLEAR_MIN_COUNT = int(os.getenv("AQI_SMOKE_CLEAR_MIN_COUNT", "6"))
 
 def resolve_table(candidates):
     try:
@@ -164,7 +167,6 @@ state_script = """
 components.html(
     state_script,
     height=0,
-    key="scroll_state_script",
 )
 
 components.html(
@@ -208,7 +210,6 @@ components.html(
     </script>
     """,
     height=0,
-    key="theme_class_script",
 )
 
 # Navigation/page state
@@ -1220,7 +1221,6 @@ def render_alert_overrides_sync():
         </script>
         """,
         height=0,
-        key="alert_override_sync",
     )
 
 
@@ -3078,6 +3078,18 @@ if "timeframe" not in st.session_state:
 if "custom_range" not in st.session_state:
     today = pd.Timestamp.utcnow().date()
     st.session_state.custom_range = (today - pd.Timedelta(days=1), today)
+if "aqi_smoke_event_enabled" not in st.session_state:
+    try:
+        with config_connect(DB_PATH) as conn:
+            st.session_state.aqi_smoke_event_enabled = bool(get_bool(conn, "aqi_smoke_event_enabled") or False)
+            st.session_state.aqi_smoke_event_started_at = get_float(conn, "aqi_smoke_event_started_at") or 0.0
+    except Exception:
+        st.session_state.aqi_smoke_event_enabled = False
+        st.session_state.aqi_smoke_event_started_at = 0.0
+if "_aqi_smoke_event_saved" not in st.session_state:
+    st.session_state._aqi_smoke_event_saved = st.session_state.aqi_smoke_event_enabled
+if "_aqi_smoke_event_started_at_saved" not in st.session_state:
+    st.session_state._aqi_smoke_event_started_at_saved = st.session_state.aqi_smoke_event_started_at
 
 def render_filters_ui():
     st.markdown("<div class='section-title'>Date Filters</div>", unsafe_allow_html=True)
@@ -3098,7 +3110,35 @@ def render_filters_ui():
             st.session_state.custom_range = (date_range[0], date_range[1])
     st.markdown("<div class='section-title'>Overlays</div>", unsafe_allow_html=True)
     st.session_state.show_feels = st.checkbox("Feels like", value=st.session_state.get("show_feels", True))
-    st.session_state.show_aqi = st.checkbox("AQI", value=st.session_state.get("show_aqi", True))
+    st.session_state.show_aqi = st.checkbox(
+        "AQI",
+        value=st.session_state.get("show_aqi", True),
+    )
+    st.markdown("<div class='section-title'>AQI Controls</div>", unsafe_allow_html=True)
+    st.toggle(
+        "Smoke event (mute AQI narrative)",
+        key="aqi_smoke_event_enabled",
+        help=(
+            "Mark a smoke or burn event so the brief doesn't overreact to elevated AQI. "
+            f"Auto-clears after {AQI_SMOKE_CLEAR_HOURS}h at or below AQI {AQI_SMOKE_CLEAR_MAX:g}."
+        ),
+    )
+    if st.session_state.aqi_smoke_event_enabled:
+        st.caption("Smoke event active. AQI stays visible; brief de-emphasizes AQI.")
+    if st.session_state._aqi_smoke_event_saved != st.session_state.aqi_smoke_event_enabled:
+        try:
+            with config_connect(DB_PATH) as conn:
+                set_bool(conn, "aqi_smoke_event_enabled", st.session_state.aqi_smoke_event_enabled)
+                if st.session_state.aqi_smoke_event_enabled and st.session_state.aqi_smoke_event_started_at <= 0:
+                    st.session_state.aqi_smoke_event_started_at = time.time()
+                    set_float(conn, "aqi_smoke_event_started_at", st.session_state.aqi_smoke_event_started_at)
+                if not st.session_state.aqi_smoke_event_enabled:
+                    st.session_state.aqi_smoke_event_started_at = 0.0
+                    set_float(conn, "aqi_smoke_event_started_at", 0.0)
+            st.session_state._aqi_smoke_event_saved = st.session_state.aqi_smoke_event_enabled
+            st.session_state._aqi_smoke_event_started_at_saved = st.session_state.aqi_smoke_event_started_at
+        except Exception:
+            pass
 
 render_left_rail(st.session_state.page, render_filters_ui)
 
@@ -3717,6 +3757,7 @@ if lat_for_forecast is not None and lon_for_forecast is not None:
     nws_alerts_html = format_alerts_html(nws_alerts, LOCAL_TZ)
     nws_hwo = fetch_nws_hwo_cached(lat_for_forecast, lon_for_forecast)
     nws_hwo_html = format_hwo_html(nws_hwo, LOCAL_TZ)
+NWS_USER_AGENT = os.getenv("NWS_USER_AGENT", "")
 
 saved_alert_config, _ = load_alert_config(DB_PATH)
 saved_alert_email = saved_alert_config.get("alert_email_to", "")
@@ -3952,6 +3993,44 @@ if not airlink.empty:
     airlink_latest = airlink.iloc[-1]
     aqi_share_df = aqi_zone_share(airlink["aqi_pm25"])
 
+smoke_event_active = bool(st.session_state.get("aqi_smoke_event_enabled", False))
+smoke_event_started_at = st.session_state.get("aqi_smoke_event_started_at", 0.0) or 0.0
+if smoke_event_active and smoke_event_started_at <= 0:
+    smoke_event_started_at = time.time()
+    st.session_state.aqi_smoke_event_started_at = smoke_event_started_at
+    try:
+        with config_connect(DB_PATH) as conn:
+            set_float(conn, "aqi_smoke_event_started_at", smoke_event_started_at)
+        st.session_state._aqi_smoke_event_started_at_saved = smoke_event_started_at
+    except Exception:
+        pass
+
+if smoke_event_active and not airlink.empty:
+    try:
+        now_local = pd.Timestamp.now(tz=LOCAL_TZ)
+    except Exception:
+        now_local = pd.Timestamp.utcnow().tz_localize("UTC").tz_convert(LOCAL_TZ)
+    cutoff = now_local - pd.Timedelta(hours=AQI_SMOKE_CLEAR_HOURS)
+    recent = airlink[airlink["time"] >= cutoff].copy()
+    recent = recent[recent["aqi_pm25"].notna()]
+    if len(recent) >= AQI_SMOKE_CLEAR_MIN_COUNT:
+        span = recent["time"].max() - recent["time"].min()
+        span_hours = span.total_seconds() / 3600 if pd.notna(span) else 0
+        if span_hours >= AQI_SMOKE_CLEAR_HOURS * 0.8:
+            max_aqi = float(recent["aqi_pm25"].max())
+            if max_aqi <= AQI_SMOKE_CLEAR_MAX:
+                smoke_event_active = False
+                st.session_state.aqi_smoke_event_enabled = False
+                st.session_state.aqi_smoke_event_started_at = 0.0
+                try:
+                    with config_connect(DB_PATH) as conn:
+                        set_bool(conn, "aqi_smoke_event_enabled", False)
+                        set_float(conn, "aqi_smoke_event_started_at", 0.0)
+                    st.session_state._aqi_smoke_event_saved = False
+                    st.session_state._aqi_smoke_event_started_at_saved = 0.0
+                except Exception:
+                    pass
+
 # Current metrics
 current_temp = float(tempest_latest.air_temperature_f) if tempest_latest is not None else None
 current_feels = float(tempest_latest.heat_index_f) if tempest_latest is not None else None
@@ -4065,16 +4144,20 @@ sun_chip_text = "--"
 if sunrise_local and sunset_local:
     sun_chip_text = f"{fmt_time(sunrise_local)} to {fmt_time(sunset_local)}"
 wind_dir_text = current_wind_dir if current_wind_dir is not None else "--"
+aqi_chip_html = (
+    f'<div class="metric-chip"><span class="chip-icon">AQ</span>'
+    f"<span>{metric_text(current_aqi, '{:.0f}')}</span></div>"
+)
 
 header_html = f"""
-<div class="header-row">
-  <div class="header-title">Tempest</div>
-  <div class="metric-chip"><span class="chip-icon">T</span><span>{metric_text(current_temp, "{:.1f}", "F")}</span></div>
-  <div class="metric-chip"><span class="chip-icon">AQ</span><span>{metric_text(current_aqi, "{:.0f}")}</span></div>
-  <div class="metric-chip"><span class="chip-icon">W</span><span>{metric_text(current_wind, "{:.1f}", " mph")}</span></div>
-  <div class="metric-chip"><span class="chip-icon">P</span><span>{metric_text(current_pressure, "{:.2f}", " inHg")}</span></div>
-  <div class="metric-chip"><span class="chip-icon">Sun</span><span>{sun_chip_text}</span></div>
-</div>
+  <div class="header-row">
+    <div class="header-title">Tempest</div>
+    <div class="metric-chip"><span class="chip-icon">T</span><span>{metric_text(current_temp, "{:.1f}", "F")}</span></div>
+  {aqi_chip_html}
+    <div class="metric-chip"><span class="chip-icon">W</span><span>{metric_text(current_wind, "{:.1f}", " mph")}</span></div>
+    <div class="metric-chip"><span class="chip-icon">P</span><span>{metric_text(current_pressure, "{:.2f}", " inHg")}</span></div>
+    <div class="metric-chip"><span class="chip-icon">Sun</span><span>{sun_chip_text}</span></div>
+  </div>
 """
 render_header_strip(header_html)
 
@@ -4154,6 +4237,23 @@ brief_yesterday = brief_rows[1] if len(brief_rows) > 1 else None
 rain_total_in = rain_total_mm / 25.4 if rain_total_mm is not None else None
 include_feels = st.session_state.get("show_feels", True)
 include_aqi = st.session_state.get("show_aqi", True)
+aqi_window_avg = None
+aqi_smoke_adjusted_avg = None
+if not airlink.empty:
+    try:
+        aqi_window_avg = float(airlink["aqi_pm25"].mean())
+    except Exception:
+        aqi_window_avg = None
+if smoke_event_active and smoke_event_started_at > 0 and not airlink.empty:
+    try:
+        smoke_start_dt = (
+            pd.to_datetime(smoke_event_started_at, unit="s", utc=True).tz_convert(LOCAL_TZ)
+        )
+        pre_smoke = airlink[airlink["time"] < smoke_start_dt]
+        if not pre_smoke.empty:
+            aqi_smoke_adjusted_avg = float(pre_smoke["aqi_pm25"].mean())
+    except Exception:
+        aqi_smoke_adjusted_avg = None
 
 metrics_ctx = []
 metrics_ctx.append(
@@ -4315,6 +4415,9 @@ page_ctx = {
     },
     "alerts_html": alert_banner_html,
     "last_updated": last_updated,
+    "aqi_smoke_event_enabled": smoke_event_active,
+    "aqi_window_avg": aqi_window_avg,
+    "aqi_smoke_adjusted_avg": aqi_smoke_adjusted_avg,
 }
 
 page = st.session_state.page
@@ -4326,10 +4429,52 @@ if page == "home":
         right_col.markdown("<div class='right-rail'>", unsafe_allow_html=True)
         if alert_banner_html:
             right_col.markdown(alert_banner_html, unsafe_allow_html=True)
+        if smoke_event_active:
+            observed_text = metric_text(aqi_window_avg, "{:.0f}") if aqi_window_avg is not None else "--"
+            adjusted_text = metric_text(aqi_smoke_adjusted_avg, "{:.0f}") if aqi_smoke_adjusted_avg is not None else "--"
+            right_col.markdown(
+                "<div class='card status-card'>"
+                "<div class='section-title'>Smoke event active</div>"
+                "<div class='status-line'><span>AQI avg (observed)</span>"
+                f"<span>{observed_text}</span></div>"
+                "<div class='status-line'><span>AQI avg (smoke-adjusted)</span>"
+                f"<span>{adjusted_text}</span></div>"
+                "<div class='metric-sub'>Brief de-emphasizes AQI while smoke event is active.</div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
         if nws_alerts_html:
             right_col.markdown(nws_alerts_html, unsafe_allow_html=True)
+        else:
+            if lat_for_forecast is None or lon_for_forecast is None:
+                alert_msg = "NWS alerts unavailable (location not set)."
+            elif not NWS_USER_AGENT:
+                alert_msg = "Set NWS_USER_AGENT to enable NWS alerts."
+            else:
+                alert_msg = "No active NWS alerts."
+            right_col.markdown(
+                "<div class='card status-card'>"
+                "<div class='section-title'>NWS Alerts</div>"
+                f"<div class='metric-sub'>{alert_msg}</div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
         if nws_hwo_html:
             right_col.markdown(nws_hwo_html, unsafe_allow_html=True)
+        else:
+            if lat_for_forecast is None or lon_for_forecast is None:
+                hwo_msg = "NWS outlook unavailable (location not set)."
+            elif not NWS_USER_AGENT:
+                hwo_msg = "Set NWS_USER_AGENT to enable NWS outlooks."
+            else:
+                hwo_msg = "No current NWS outlook available."
+            right_col.markdown(
+                "<div class='card status-card'>"
+                "<div class='section-title'>NWS Outlooks</div>"
+                f"<div class='metric-sub'>{hwo_msg}</div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
         if metrics_ctx:
             right_col.markdown("<div class='section-title'>Now at a glance</div>", unsafe_allow_html=True)
             right_col.markdown("<div class='cards-grid'>", unsafe_allow_html=True)

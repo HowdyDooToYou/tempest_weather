@@ -365,6 +365,14 @@ def run_once():
         ensure_table(conn)
         obs = load_obs(conn, since_epoch)
         aqi = load_aqi(conn, since_epoch)
+        smoke_event_active = False
+        try:
+            with config_connect(DB_PATH) as cfg:
+                smoke_event_active = bool(get_bool(cfg, "aqi_smoke_event_enabled") or False)
+        except Exception:
+            smoke_event_active = False
+        if smoke_event_active:
+            aqi = pd.DataFrame()
         lat, lon = resolve_location()
         history_line = None
         alert_lines = []

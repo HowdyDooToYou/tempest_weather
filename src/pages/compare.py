@@ -52,7 +52,6 @@ def render(ctx):
     tz_name = ctx.get("tz_name") or "UTC"
     tempest = ctx.get("tempest", pd.DataFrame())
     airlink = ctx.get("airlink", pd.DataFrame())
-
     st.markdown("<div class='section-title'>Compare</div>", unsafe_allow_html=True)
     mode = st.radio(
         "Compare mode",

@@ -1,143 +1,276 @@
 # Tempest Weather and Air Quality Dashboard
 
-Streamlit dashboard for Tempest weather and AirLink air-quality data with live gauges, palettes, forecasts, and background services.
-
-## Features
-- Home, Trends, Compare, and Data pages for weather and AQI.
-- Live gauges with highlights and local time, plus a sticky at-a-glance strip.
-- Theme palettes plus a Custom token picker (with light/dark modes).
-- Connection and ingest health panel with collector status.
-- Forecast via Open-Meteo fallback with optional Tempest better_forecast.
-- Daily Brief (OpenAI) and Daily Email summary (NSSM services).
-- NWS alerts and outlooks (HWO) displayed in UI and optionally delivered via email/SMS.
-- Freeze alerts via email/SMS (UI or background worker).
+A personal weather station dashboard built with Streamlit that aggregates real-time data from WeatherFlow Tempest devices and Davis AirLink air quality sensors.
 
 ![Example screen shot of Home page](docs/images/home.png)
 
-## Supported devices
-- Tempest Station (weather observations)
-- Tempest Hub (connectivity/heartbeat)
-- AirLink (PM/AQI; treated as outdoor)
+## Features
 
-## Requirements
+- **Real-time Monitoring**: Live gauges for temperature, humidity, wind, pressure, UV index
+- **Air Quality Tracking**: PM2.5/PM10/AQI with smoke event suppression toggle
+- **Forecast Integration**: Tempest better_forecast API with Open-Meteo fallback
+- **AI Daily Briefs**: GPT-4o-mini generated weather summaries with historical context
+- **Multi-channel Alerts**: Email + Verizon SMS for freeze warnings and NWS severe weather
+- **Theme System**: Dark/light modes with custom CSS token picker
+- **Windows Service Support**: NSSM-based service installation for headless operation
+
+### Dashboard Pages
+
+| Page | Description |
+|------|-------------|
+| **Home** | Daily brief, forecast chart, 7-day outlook, NWS alerts |
+| **Trends** | Reorderable time-series charts with metric selection |
+| **Compare** | Today vs yesterday, week vs week, year vs year overlays |
+| **Data** | Raw tables, health status, diagnostics |
+
+## Supported Devices
+
+| Device | Data Collected |
+|--------|----------------|
+| **Tempest Station** | Temperature, humidity, wind, pressure, UV, solar radiation, rain, lightning |
+| **Tempest Hub** | Connectivity heartbeat |
+| **Davis AirLink** | PM1, PM2.5, PM10, AQI (outdoor) |
+
+## Quick Start
+
+### Prerequisites
+
 - Python 3.10+ (tested on 3.12)
-- Dependencies: `streamlit`, `streamlit-autorefresh`, `pandas`, `altair`, `requests`
-- Optional: `meteostat` for "On this day" historical context in Daily Briefs.
-- Tempest/AirLink data available in `data/tempest.db` (and related tables)
-- Optional env: `CONTROL_REFRESH_SECONDS` (default 120; uses `AUTO_REFRESH_SECONDS` as fallback) to set the sidebar auto-refresh cadence without rerendering the main dashboard content.
-- Optional env: `FORECAST_REFRESH_MINUTES` (default 30) to set how often Tempest better_forecast data is refreshed.
-- Forecast credentials: set `TEMPEST_API_TOKEN` (preferred) or `TEMPEST_API_KEY` to enable the forecast tab/section.
-- Forecast units: `FORECAST_UNITS=imperial` (default) or `metric` to request Tempest better_forecast in your preferred units.
-- Daily Brief: optional OpenAI-powered digest written to SQLite via `src/daily_brief_worker.py`; set `OPENAI_API_KEY` (and optionally `DAILY_BRIEF_INTERVAL_MINUTES`, `DAILY_BRIEF_MODEL`). Uses Meteostat when available and falls back to Open-Meteo archive for "On this day" context when location is set. Installed as `TempestWeatherDailyBrief` NSSM service alongside UI/Alerts.
-- Daily Email: optional 7am summary email via `src/daily_email_worker.py`; set `DAILY_EMAIL_TO` (and optionally `DAILY_EMAIL_HOUR`, `DAILY_EMAIL_MINUTE`, `DAILY_EMAIL_LAT`, `DAILY_EMAIL_LON`). Installed as `TempestWeatherDailyEmail` NSSM service.
+- Windows 10/11 (for NSSM services)
+- WeatherFlow Tempest station with API token
+- Optional: Davis AirLink sensor, OpenAI API key
 
-## Quick start
-1) Create a virtual environment:
+### Installation
+
+1. **Clone and setup virtual environment:**
    ```bash
+   git clone https://github.com/yourusername/tempest_weather.git
+   cd tempest_weather
    python -m venv .venv
    .\.venv\Scripts\activate
    ```
-2) Install deps:
+
+2. **Install dependencies:**
    ```bash
-   pip install streamlit streamlit-autorefresh pandas altair requests
+   pip install streamlit streamlit-autorefresh pandas altair requests websocket-client
+   pip install openai  # Optional: for AI daily briefs
+   pip install meteostat  # Optional: for historical context
    ```
-3) Run the app:
+
+3. **Configure environment:**
+   ```powershell
+   copy .env.example .env
+   # Edit .env with your API tokens and settings
+   ```
+
+4. **Run the dashboard:**
    ```bash
    streamlit run dashboard.py
    ```
-4) Optional: create `.env` from `.env.example` and run the convenience script:
+
+   Or use the convenience script:
    ```powershell
-   copy .env.example .env
    .\scripts\run_streamlit.ps1
    ```
-   The script loads `.env` into the current shell and does not overwrite existing env vars unless `-OverrideEnv` is used.
-   For services, skip `.env` and set environment variables via NSSM or System Environment.
 
 ## Configuration
-- `TEMPEST_API_TOKEN`: optional, for auto-location.
-- `TEMPEST_DB_PATH`: optional, defaults to `data/tempest.db`.
-- `LOCAL_TZ`: optional, defaults to `America/New_York`.
 
-### Alerts
-- SMTP credentials (env or Windows Credential Manager):
-  - Env vars: `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM`
-  - Credential Manager: store a Generic credential target `TempestWeatherSMTP` (override with `SMTP_CRED_TARGET`), username = Gmail address, password = app password.
-  - Optional: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_TLS`, `SMTP_USE_SSL`
-  - Helper script:
-    ```powershell
-    .\scripts\set_smtp_credential.ps1 -Username "you@gmail.com"
-    ```
-    Use `-Target` to match `SMTP_CRED_TARGET` if you changed it.
-- Recipients:
-  - Email: `ALERT_EMAIL_TO` (env) or save via Controls -> Alerts.
-  - SMS: `VERIZON_SMS_TO` (env) or save via Controls -> Alerts.
-- Thresholds:
-  - `FREEZE_WARNING_F` (default 32)
-  - `DEEP_FREEZE_F` (default 18)
-  - `FREEZE_RESET_F` (default 34)
-- Worker settings:
-  - `ALERTS_WORKER_ENABLED=1` to stop UI sends when the worker is active.
-  - `ALERT_WORKER_INTERVAL_SECONDS` (default 60)
-  - Use the worker for continuous alerts when no UI session is open.
+### Essential Variables
 
-## Alerts and privacy
-- SMTP credentials are never stored in the database or code.
-- Windows Credential Manager credentials are loaded at runtime and do not need to be in `.env` or service config.
-- Recipient overrides saved in the UI are stored in `data/tempest.db` (gitignored).
-- Saved recipients override env values; clear them in Controls -> Alerts to revert.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TEMPEST_API_TOKEN` | Yes | WeatherFlow API token |
+| `LOCAL_TZ` | No | Timezone (default: `America/New_York`) |
+| `TEMPEST_DB_PATH` | No | Database path (default: `data/tempest.db`) |
 
-## Run as a Windows service (NSSM)
-1) Install NSSM (for example: `choco install nssm`).
-2) Configure environment variables for services (Windows System Environment or NSSM Environment tab).
-   The installer reads from the current shell and writes them into `AppEnvironmentExtra`.
-   If using Windows Credential Manager, set `SMTP_CRED_TARGET` (optional; defaults to `TempestWeatherSMTP`).
-   Credential Manager lookups use the service account, so run NSSM services under your user if needed.
-3) Run:
+### Optional Features
+
+| Feature | Variables |
+|---------|-----------|
+| **AirLink** | `DAVIS_AIRLINK_HOST` |
+| **AI Briefs** | `OPENAI_API_KEY`, `DAILY_BRIEF_MODEL` |
+| **Email Alerts** | `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_TO` |
+| **SMS Alerts** | `VERIZON_SMS_TO` |
+| **NWS Alerts** | `NWS_USER_AGENT`, `NWS_ALERTS_ENABLED` |
+
+📖 **Full configuration reference:** [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│ WeatherFlow WS  │     │  Davis AirLink  │
+└────────┬────────┘     └────────┬────────┘
+         │                       │
+         ▼                       ▼
+┌─────────────────────────────────────────┐
+│           Data Collectors               │
+│  (collector.py, airlink_collector.py)   │
+└────────────────┬────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────┐
+│         SQLite Database                 │
+│         (data/tempest.db)               │
+└────────────────┬────────────────────────┘
+                 │
+    ┌────────────┼────────────┐
+    ▼            ▼            ▼
+┌────────┐  ┌────────┐  ┌────────┐
+│  UI    │  │ Alerts │  │ Daily  │
+│Service │  │ Worker │  │ Brief  │
+└────────┘  └────────┘  └────────┘
+```
+
+📖 **Full architecture documentation:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+## Windows Services (NSSM)
+
+### Install Services
+
+1. Install NSSM:
    ```powershell
+   choco install nssm
+   ```
+
+2. Set environment variables and install:
+   ```powershell
+   $env:TEMPEST_API_TOKEN = "your-token"
+   $env:SMTP_USERNAME = "you@gmail.com"
+   # ... other variables
    .\scripts\install_services.ps1
    ```
-4) Remove services:
-   ```powershell
-   .\scripts\uninstall_services.ps1
-   ```
-5) Convenience commands (run as Administrator for start/stop/restart/install):
-   ```powershell
-   .\scripts\services.ps1 status
-   .\scripts\services.ps1 start
-   .\scripts\services.ps1 restart -Target alerts
-   .\scripts\services.ps1 logs -Target ui -LogLines 200
-   .\scripts\services.ps1 env
-   ```
-   Or use the interactive menu:
-   ```powershell
-   .\scripts\services_menu.ps1
-   ```
 
-Services installed by the script:
-- `TempestWeatherUI` (Streamlit dashboard on port 8501)
-- `TempestWeatherAlerts` (background alerts worker)
-- `TempestWeatherDailyBrief` (OpenAI daily brief generator)
-- `TempestWeatherDailyEmail` (7am email summary)
-The install script sets `ALERTS_WORKER_ENABLED=1` for the UI service to avoid duplicate alerts.
+### Manage Services
 
-Service env checklist (NSSM/System):
-- Required: `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_EMAIL_FROM` (or use `SMTP_CRED_TARGET` and omit username/password)
-- Recipients: `ALERT_EMAIL_TO` and `VERIZON_SMS_TO` (optional if saved via Controls -> Alerts)
-- Transport: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_TLS`, `SMTP_USE_SSL` (set one true)
-- Alerts: `FREEZE_WARNING_F`, `DEEP_FREEZE_F`, `FREEZE_RESET_F` (optional)
-- Optional: `LOCAL_TZ`, `TEMPEST_DB_PATH`, `TEMPEST_API_TOKEN`
-- Alerts worker: `ALERT_WORKER_INTERVAL_SECONDS` (service only)
-- UI service: `ALERTS_WORKER_ENABLED=1` (set by installer)
-- Daily brief: `DAILY_BRIEF_LAT`, `DAILY_BRIEF_LON` (optional location for Meteostat history)
-- Daily email: `DAILY_EMAIL_TO`, `DAILY_EMAIL_HOUR`, `DAILY_EMAIL_MINUTE`, `DAILY_EMAIL_LAT`, `DAILY_EMAIL_LON`
-- NWS alerts: `NWS_USER_AGENT` (required by api.weather.gov), `NWS_ALERTS_ENABLED`, `NWS_HWO_NOTIFY`, `NWS_ZONE` (optional override like `GAZ041`)
+```powershell
+.\scripts\services.ps1 status              # Check all services
+.\scripts\services.ps1 start               # Start all services
+.\scripts\services.ps1 restart -Target ui  # Restart specific service
+.\scripts\services.ps1 logs -Target alerts # View logs
+.\scripts\services.ps1 env                 # Check environment config
+```
 
-## Usage notes
-- Home combines forecast, daily brief, at-a-glance cards, and outlook.
-- Trends lets you reorder or hide charts with the chart order multiselect.
-- Compare offers time-to-time overlays (today vs yesterday, this week vs last week, same day last year).
-- Data provides raw tables and diagnostics for inspection.
+### Services Installed
+
+| Service | Purpose |
+|---------|---------|
+| `TempestWeatherUI` | Streamlit dashboard (port 8501) |
+| `TempestWeatherAlerts` | Freeze + NWS alert monitoring |
+| `TempestWeatherDailyBrief` | AI weather digest (every 3 hours) |
+| `TempestWeatherDailyEmail` | Morning email summary (7am) |
+
+## Alerting
+
+### Freeze Alerts
+
+Automatic notifications when temperature drops below thresholds:
+
+| Alert | Default Threshold |
+|-------|-------------------|
+| Freeze Warning | 32°F |
+| Deep Freeze | 18°F |
+| Reset | 34°F |
+
+### NWS Integration
+
+- Active weather alerts from api.weather.gov
+- Hazardous Weather Outlook (HWO)
+- Automatic zone detection from coordinates
+
+### Delivery Channels
+
+- **Email**: SMTP (Gmail supported, with app passwords)
+- **SMS**: Verizon email-to-SMS gateway
+
+📖 **Full alerting documentation:** [docs/ALERTING.md](docs/ALERTING.md)
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, database schema |
+| [CONFIGURATION.md](docs/CONFIGURATION.md) | Complete environment variable reference |
+| [COLLECTORS.md](docs/COLLECTORS.md) | Data collector setup and operation |
+| [ALERTING.md](docs/ALERTING.md) | Alert system configuration |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+
+## Troubleshooting
+
+### Quick Diagnostics
+
+```powershell
+# Check system health
+python -m src.collector_watchdog
+
+# Check service status
+.\scripts\services.ps1 status
+
+# View recent logs
+.\scripts\services.ps1 logs -LogLines 50
+```
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| No data appearing | Check `TEMPEST_API_TOKEN` is set |
+| Emails not sending | Verify Gmail app password (not regular password) |
+| Service won't start | Check logs: `.\scripts\services.ps1 logs -Target ui` |
+| Database locked | Stop all services, check for zombie processes |
+
+📖 **Full troubleshooting guide:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
 ## Development
-- Run `python -m py_compile dashboard.py src/alerting.py src/alerts_worker.py` for a quick syntax check.
-- No external build needed; app is Streamlit-only.
+
+### Syntax Check
+
+```bash
+python -m py_compile dashboard.py src/alerting.py src/alerts_worker.py
+```
+
+### Run Tests
+
+```bash
+python -m pytest tests/
+```
+
+### Project Structure
+
+```
+tempest_weather/
+├── dashboard.py           # Main Streamlit entry point
+├── src/
+│   ├── collector.py       # Tempest WebSocket collector
+│   ├── airlink_collector.py # AirLink HTTP collector
+│   ├── alerting.py        # Alert delivery (email/SMS)
+│   ├── alerts_worker.py   # Background alert service
+│   ├── daily_brief_worker.py # AI brief generator
+│   ├── daily_email_worker.py # Morning email service
+│   ├── nws_alerts.py      # NWS API integration
+│   ├── forecast.py        # Forecast parsing
+│   └── pages/             # Dashboard pages
+├── scripts/               # PowerShell utilities
+├── docs/                  # Documentation
+├── data/                  # SQLite database (gitignored)
+└── logs/                  # Service logs (gitignored)
+```
+
+## Privacy & Security
+
+- **API tokens**: Stored in environment variables only
+- **SMTP credentials**: Support Windows Credential Manager
+- **Database**: Local SQLite, gitignored by default
+- **No telemetry**: All data stays on your machine
+
+## License
+
+MIT License - See LICENSE file for details.
+
+## Acknowledgments
+
+- [WeatherFlow](https://weatherflow.com/) for the Tempest API
+- [Davis Instruments](https://www.davisinstruments.com/) for AirLink
+- [National Weather Service](https://www.weather.gov/) for alert data
+- [Open-Meteo](https://open-meteo.com/) for forecast fallback
+- [OpenAI](https://openai.com/) for daily brief generation
