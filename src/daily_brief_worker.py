@@ -10,7 +10,14 @@ import requests
 
 from src.config_store import connect as config_connect
 from src.config_store import get_bool, get_float
-from src.nws_alerts import fetch_active_alerts, fetch_hwo_text, summarize_alerts, summarize_hwo
+from src.nws_alerts import (
+    fetch_active_alerts,
+    fetch_afd_text,
+    fetch_hwo_text,
+    summarize_afd,
+    summarize_alerts,
+    summarize_hwo,
+)
 
 DB_PATH = os.getenv("TEMPEST_DB_PATH", "data/tempest.db")
 LOCAL_TZ = os.getenv("LOCAL_TZ", "America/New_York")
@@ -36,6 +43,60 @@ def ensure_table(conn: sqlite3.Connection):
             version TEXT
         )
         """
+    )
+    conn.commit()
+
+
+def ensure_afd_table(conn: sqlite3.Connection):
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS nws_afd_highlights (
+            product_id TEXT PRIMARY KEY,
+            issued TEXT,
+            cwa TEXT,
+            headline TEXT,
+            highlights_json TEXT,
+            text TEXT,
+            created_at TEXT
+        )
+        """
+    )
+    conn.commit()
+
+
+def save_afd_highlights(conn: sqlite3.Connection, afd: dict, highlights: list[str] | None):
+    product_id = afd.get("id")
+    if not product_id:
+        return
+    ensure_afd_table(conn)
+    conn.execute(
+        """
+        INSERT INTO nws_afd_highlights (
+            product_id,
+            issued,
+            cwa,
+            headline,
+            highlights_json,
+            text,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(product_id) DO UPDATE SET
+          issued=excluded.issued,
+          cwa=excluded.cwa,
+          headline=excluded.headline,
+          highlights_json=excluded.highlights_json,
+          text=excluded.text
+        """,
+        (
+            product_id,
+            afd.get("issued"),
+            afd.get("cwa"),
+            afd.get("headline"),
+            json.dumps(highlights or []),
+            afd.get("text", ""),
+            datetime.now(timezone.utc).isoformat(),
+        ),
     )
     conn.commit()
 
@@ -258,12 +319,26 @@ def compute_history_line_openmeteo(lat: float, lon: float, tz_name: str, years_b
     )
 
 
+def format_nws_time(value: str | None, tz_name: str) -> str | None:
+    if not value:
+        return None
+    try:
+        cleaned = value.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(cleaned)
+        tz = ZoneInfo(tz_name)
+        return dt.astimezone(tz).strftime("%b %d %I:%M %p").lstrip("0")
+    except Exception:
+        return value
+
+
 def build_prompt(
     obs: pd.DataFrame,
     aqi: pd.DataFrame,
     tz: str,
     history_line: str | None = None,
     alert_lines: list[str] | None = None,
+    afd_highlights: list[str] | None = None,
+    afd_issued: str | None = None,
 ):
     lines = []
     if not obs.empty:
@@ -286,6 +361,11 @@ def build_prompt(
     if alert_lines:
         lines.append("Active alerts:")
         lines.extend(alert_lines)
+    if afd_highlights:
+        if afd_issued:
+            lines.append(f"AFD issued: {afd_issued}")
+        lines.append("AFD highlights:")
+        lines.extend(f"- {item}" for item in afd_highlights)
     return "\n".join(lines) or "No data."
 
 
@@ -310,13 +390,15 @@ def call_openai(prompt: str):
             {
                 "role": "system",
                 "content": (
-                    "Write a short, story-forward daily weather brief in a warm local-meteorologist voice. "
-                    "Include a vivid headline, 3-5 bullets, and a light narrative arc (what happened, what it felt like, "
-                    "what to watch). If a History line is provided, include a bullet that starts with 'On this day:' "
-                    "and weave it in naturally. Avoid sounding like raw stats."
-                ),
-            },
-            {"role": "user", "content": prompt},
+                "Write a short, story-forward daily weather brief in a warm local-meteorologist voice. "
+                "Include a vivid headline, 3-5 bullets, and a light narrative arc (what happened, what it felt like, "
+                "what to watch). If a History line is provided, include a bullet that starts with 'On this day:' "
+                "and weave it in naturally. If AFD highlights are provided, include at most one bullet that starts "
+                "with 'Forecaster context:' and summarize the highlights without quoting them. Avoid sounding like "
+                "raw stats."
+            ),
+        },
+        {"role": "user", "content": prompt},
         ],
         response_format={"type": "json_schema", "json_schema": {"name": "brief", "schema": schema}},
     )
@@ -377,6 +459,8 @@ def run_once():
         history_line = None
         alert_lines = []
         hwo_summary = None
+        afd_highlights = None
+        afd_issued = None
         if lat is not None and lon is not None:
             history_line = compute_history_line_meteostat(lat, lon, tz)
             if not history_line:
@@ -384,11 +468,25 @@ def run_once():
             alerts = fetch_active_alerts(lat, lon, tz)
             alert_lines = summarize_alerts(alerts, tz, max_items=2)
             hwo_summary = summarize_hwo(fetch_hwo_text(lat, lon))
+            afd = fetch_afd_text(lat, lon)
+            afd_highlights = summarize_afd(afd, max_items=3)
+            if afd and afd.get("issued"):
+                afd_issued = format_nws_time(afd.get("issued"), tz)
+            if afd:
+                save_afd_highlights(conn, afd, afd_highlights)
         if not history_line:
             history_line = compute_history_line(conn, tz)
         if hwo_summary:
             alert_lines = alert_lines + [f"Outlook: {hwo_summary}"]
-        prompt = build_prompt(obs, aqi, tz, history_line=history_line, alert_lines=alert_lines)
+        prompt = build_prompt(
+            obs,
+            aqi,
+            tz,
+            history_line=history_line,
+            alert_lines=alert_lines,
+            afd_highlights=afd_highlights,
+            afd_issued=afd_issued,
+        )
         brief = call_openai(prompt)
         if brief:
             save_brief(conn, now.astimezone().date().isoformat(), tz, brief)

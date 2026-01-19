@@ -40,15 +40,32 @@ def render(ctx):
                 }
             )
         st.dataframe(pd.DataFrame(rows), use_container_width=True)
+        collector_statuses = health.get("collector_statuses", [])
+        if collector_statuses:
+            status_rows = []
+            for status in collector_statuses:
+                status_rows.append(
+                    {
+                        "Collector": status.get("name", "--"),
+                        "Status": status.get("status", "--"),
+                        "Last ok": status.get("latency_text", "--"),
+                        "Last error": status.get("error_text", "--"),
+                    }
+                )
+            st.dataframe(pd.DataFrame(status_rows), use_container_width=True)
         return
 
     last_updated = ctx.get("last_updated", {})
-    status_card(
-        "Status",
-        [
-            ("Tempest", last_updated.get("Tempest", "--")),
-            ("AirLink", last_updated.get("AirLink", "--")),
-            ("Hub", last_updated.get("Hub", "--")),
-            ("Forecast", ctx.get("forecast_status", "--") or "--"),
-        ],
-    )
+    status_items = [
+        ("Tempest", last_updated.get("Tempest", "--")),
+        ("AirLink", last_updated.get("AirLink", "--")),
+        ("Hub", last_updated.get("Hub", "--")),
+        ("Forecast", ctx.get("forecast_status", "--") or "--"),
+    ]
+    brief_updated = ctx.get("brief_updated")
+    if brief_updated:
+        status_items.append(("Daily brief", brief_updated))
+    afd_updated = ctx.get("afd_updated")
+    if afd_updated:
+        status_items.append(("AFD highlights", afd_updated))
+    status_card("Status", status_items)

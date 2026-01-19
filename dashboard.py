@@ -136,6 +136,11 @@ AIRLINK_TABLE = resolve_table(["airlink_current_obs", "airlink_obs"])
 AIRLINK_RAW_TABLE = resolve_table(["airlink_raw_all", "airlink_raw"])
 RAW_EVENTS_TABLE = resolve_table(["raw_events"])
 HEARTBEAT_TABLE = resolve_table(["collector_heartbeat"])
+DAILY_BRIEF_TABLE = resolve_table(["daily_briefs"])
+AFD_HIGHLIGHTS_TABLE = resolve_table(["nws_afd_highlights"])
+ALERT_STATE_TABLE = resolve_table(["alert_state"])
+ALERT_CONFIG_TABLE = resolve_table(["alert_config"])
+APP_CONFIG_TABLE = resolve_table(["app_config"])
 
 st.set_page_config(
     page_title="Tempest Air & Weather",
@@ -192,7 +197,11 @@ components.html(
         const sidebar = doc.querySelector('[data-testid="stSidebar"]');
         if (!sidebar) return;
         const width = sidebar.getBoundingClientRect().width || 0;
-        doc.body.classList.toggle("sidebar-collapsed", width < 80);
+        const styles = window.parent.getComputedStyle(sidebar);
+        const isHidden = styles.display === "none" || styles.visibility === "hidden";
+        const ariaCollapsed = sidebar.getAttribute("aria-expanded") === "false";
+        const isCollapsed = isHidden || ariaCollapsed || width < 160;
+        doc.body.classList.toggle("sidebar-collapsed", isCollapsed);
       }
       applyThemeClass();
       applySidebarClass();
@@ -205,6 +214,7 @@ components.html(
       }
       window.parent.setInterval(() => {
         applyThemeClass();
+        applySidebarClass();
       }, 1500);
     })();
     </script>
@@ -1791,6 +1801,30 @@ def short_text(text, max_len=90):
     if len(text) <= max_len:
         return text
     return f"{text[:max_len - 3]}..."
+
+
+def iso_to_local_str(value):
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return "--"
+    try:
+        dt = pd.to_datetime(value, utc=True)
+        dt = dt.tz_convert(LOCAL_TZ)
+        return dt.strftime("%Y-%m-%d %I:%M %p").lstrip("0")
+    except Exception:
+        return str(value)
+
+
+def json_list_to_text(raw, max_len=240):
+    if not raw or pd.isna(raw):
+        return ""
+    try:
+        items = json.loads(raw)
+    except Exception:
+        return short_text(raw, max_len)
+    if not isinstance(items, list):
+        return short_text(items, max_len)
+    joined = " | ".join(str(item).strip() for item in items if str(item).strip())
+    return short_text(joined, max_len)
 
 
 def normalize_error_message(text):
@@ -4233,6 +4267,9 @@ except Exception:
 
 brief_today = brief_rows[0] if brief_rows else None
 brief_yesterday = brief_rows[1] if len(brief_rows) > 1 else None
+brief_updated = iso_to_local_str(brief_today.get("generated_at")) if brief_today else None
+if brief_updated == "--":
+    brief_updated = None
 
 rain_total_in = rain_total_mm / 25.4 if rain_total_mm is not None else None
 include_feels = st.session_state.get("show_feels", True)
@@ -4345,6 +4382,7 @@ if include_aqi:
 
 raw_tables = []
 raw_limit = 200
+afd_updated = None
 
 raw_tempest = load_df(
     f"""
@@ -4383,6 +4421,135 @@ if AIRLINK_TABLE:
     if not airlink_obs_raw.empty:
         raw_tables.append({"title": "AirLink", "df": airlink_obs_raw})
 
+if DAILY_BRIEF_TABLE:
+    daily_briefs_df = load_df(
+        """
+        SELECT date, generated_at, tz, headline, bullets_json, tomorrow_text, model, version
+        FROM daily_briefs
+        ORDER BY generated_at DESC
+        LIMIT :limit
+        """,
+        {"limit": raw_limit},
+    )
+    if not daily_briefs_df.empty:
+        daily_briefs_df = daily_briefs_df.copy()
+        daily_briefs_df["generated_at"] = daily_briefs_df["generated_at"].apply(iso_to_local_str)
+        daily_briefs_df["bullets"] = daily_briefs_df["bullets_json"].apply(json_list_to_text)
+        daily_briefs_df.drop(columns=["bullets_json"], inplace=True)
+        raw_tables.append({"title": "Daily Briefs", "df": daily_briefs_df})
+
+if AFD_HIGHLIGHTS_TABLE:
+    afd_df = load_df(
+        """
+        SELECT product_id, issued, cwa, headline, highlights_json, text, created_at
+        FROM nws_afd_highlights
+        ORDER BY issued DESC
+        LIMIT :limit
+        """,
+        {"limit": raw_limit},
+    )
+    if not afd_df.empty:
+        afd_df = afd_df.copy()
+        afd_df["issued"] = afd_df["issued"].apply(iso_to_local_str)
+        afd_df["created_at"] = afd_df["created_at"].apply(iso_to_local_str)
+        afd_df["highlights"] = afd_df["highlights_json"].apply(json_list_to_text)
+        afd_df["text_preview"] = afd_df["text"].apply(lambda value: short_text(value, 220))
+        afd_df.drop(columns=["highlights_json", "text"], inplace=True)
+        raw_tables.append({"title": "NWS AFD Highlights", "df": afd_df})
+        candidate = afd_df.iloc[0].get("issued") or afd_df.iloc[0].get("created_at")
+        if candidate and candidate != "--":
+            afd_updated = candidate
+
+if ALERT_CONFIG_TABLE:
+    alert_config_df = load_df(
+        """
+        SELECT key, value, updated_at
+        FROM alert_config
+        ORDER BY updated_at DESC
+        LIMIT :limit
+        """,
+        {"limit": raw_limit},
+    )
+    if not alert_config_df.empty:
+        alert_config_df = alert_config_df.copy()
+        alert_config_df["updated_local"] = epoch_to_dt(
+            pd.to_numeric(alert_config_df["updated_at"], errors="coerce")
+        ).dt.strftime("%Y-%m-%d %I:%M %p").str.lstrip("0")
+        raw_tables.append({"title": "Alert Config", "df": alert_config_df})
+
+if ALERT_STATE_TABLE:
+    alert_state_df = load_df(
+        """
+        SELECT key, value, updated_at
+        FROM alert_state
+        ORDER BY updated_at DESC
+        LIMIT :limit
+        """,
+        {"limit": raw_limit},
+    )
+    if not alert_state_df.empty:
+        alert_state_df = alert_state_df.copy()
+        alert_state_df["updated_local"] = epoch_to_dt(
+            pd.to_numeric(alert_state_df["updated_at"], errors="coerce")
+        ).dt.strftime("%Y-%m-%d %I:%M %p").str.lstrip("0")
+        raw_tables.append({"title": "Alert State", "df": alert_state_df})
+
+if APP_CONFIG_TABLE:
+    app_config_df = load_df(
+        """
+        SELECT key, value
+        FROM app_config
+        ORDER BY key
+        """,
+    )
+    if not app_config_df.empty:
+        raw_tables.append({"title": "App Config", "df": app_config_df})
+
+if HEARTBEAT_TABLE:
+    heartbeat_df = load_df(
+        """
+        SELECT name, last_ok_epoch, last_error_epoch, last_ok_message, last_error
+        FROM collector_heartbeat
+        ORDER BY name
+        """,
+    )
+    if not heartbeat_df.empty:
+        heartbeat_df = heartbeat_df.copy()
+        heartbeat_df["last_ok_local"] = epoch_to_dt(
+            pd.to_numeric(heartbeat_df["last_ok_epoch"], errors="coerce")
+        ).dt.strftime("%Y-%m-%d %I:%M %p").str.lstrip("0")
+        heartbeat_df["last_error_local"] = epoch_to_dt(
+            pd.to_numeric(heartbeat_df["last_error_epoch"], errors="coerce")
+        ).dt.strftime("%Y-%m-%d %I:%M %p").str.lstrip("0")
+        raw_tables.append({"title": "Collector Heartbeat", "df": heartbeat_df})
+
+if RAW_EVENTS_TABLE:
+    raw_events_df = load_df(
+        """
+        SELECT *
+        FROM raw_events
+        ORDER BY received_at_epoch DESC
+        LIMIT :limit
+        """,
+        {"limit": raw_limit},
+    )
+    if not raw_events_df.empty:
+        raw_events_df = raw_events_df.copy()
+        raw_events_df["received_at"] = epoch_to_dt(
+            pd.to_numeric(raw_events_df["received_at_epoch"], errors="coerce")
+        ).dt.strftime("%Y-%m-%d %I:%M %p").str.lstrip("0")
+        payload_series = None
+        if "payload_text" in raw_events_df:
+            payload_series = raw_events_df["payload_text"]
+        elif "payload_json" in raw_events_df:
+            payload_series = raw_events_df["payload_json"]
+        if payload_series is not None:
+            raw_events_df["payload_preview"] = payload_series.apply(lambda value: short_text(value, 200))
+        drop_cols = [col for col in ("payload_text", "payload_json") if col in raw_events_df.columns]
+        if drop_cols:
+            raw_events_df.drop(columns=drop_cols, inplace=True)
+        raw_tables.append({"title": "Raw Events", "df": raw_events_df})
+
 last_updated = {
     "Tempest": latest_ts_str(tempest_latest.obs_epoch) if tempest_latest is not None else "--",
     "AirLink": latest_ts_str(airlink_latest.ts) if airlink_latest is not None else "--",
@@ -4402,6 +4569,7 @@ page_ctx = {
     "metrics": metrics_ctx,
     "brief_today": brief_today,
     "brief_yesterday": brief_yesterday,
+    "brief_updated": brief_updated,
     "trend_series": trend_series,
     "trend_defaults": trend_defaults,
     "tempest": tempest,
@@ -4415,6 +4583,7 @@ page_ctx = {
     },
     "alerts_html": alert_banner_html,
     "last_updated": last_updated,
+    "afd_updated": afd_updated,
     "aqi_smoke_event_enabled": smoke_event_active,
     "aqi_window_avg": aqi_window_avg,
     "aqi_smoke_adjusted_avg": aqi_smoke_adjusted_avg,

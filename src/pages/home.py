@@ -8,6 +8,7 @@ from src.ui.components.cards import chart_card
 
 
 def render(ctx):
+    tz_name = ctx.get("tz_name")
     forecast_chart = ctx.get("forecast_chart")
     forecast_outlook = ctx.get("forecast_outlook")
     forecast_source = ctx.get("forecast_source")
@@ -51,6 +52,20 @@ def render(ctx):
     if brief_yesterday:
         show_yesterday = st.toggle("Show yesterday", value=False)
     brief = brief_yesterday if show_yesterday else brief_today
+    def format_brief_generated_at(value, tz_name):
+        if not value:
+            return ""
+        try:
+            ts = pd.to_datetime(value, utc=True)
+            if tz_name:
+                try:
+                    ts = ts.tz_convert(tz_name)
+                except Exception:
+                    pass
+            return ts.strftime("%b %d %I:%M %p").lstrip("0")
+        except Exception:
+            return str(value)
+
     if brief:
         headline = brief.get("headline", "")
         if smoke_event_active and re.search(r"\b(aqi|pm2\.?5|air quality)\b", headline, re.IGNORECASE):
@@ -66,7 +81,7 @@ def render(ctx):
         tomorrow = brief.get("tomorrow")
         if smoke_event_active and tomorrow and re.search(r"\b(aqi|pm2\.?5|air quality)\b", tomorrow, re.IGNORECASE):
             tomorrow = None
-        generated_at = brief.get("generated_at") or ""
+        generated_at = format_brief_generated_at(brief.get("generated_at"), tz_name)
         st.markdown(
             f"""
             <div class="card brief-card">

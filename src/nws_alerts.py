@@ -56,6 +56,198 @@ def _format_hwo_full_html(text: str) -> str:
     return escaped.replace("\n", "<br>")
 
 
+def _strip_afd_header(text: str) -> str:
+    lines = []
+    started = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("$$"):
+            break
+        if line.startswith("&&"):
+            continue
+        if line.startswith("PRELIMINARY POINT TEMPS/POPS"):
+            break
+        if line.startswith(".") or re.match(r"^(UPDATE|SYNOPSIS|NEAR TERM|SHORT TERM|LONG TERM)\b", line, re.I):
+            started = True
+        if started:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def _extract_afd_sections(text: str) -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {}
+    current = None
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("$$") or line.startswith("&&"):
+            continue
+        header = None
+        if line.startswith("."):
+            header = line.lstrip(".").split("...")[0].strip()
+        elif re.match(
+            r"^(UPDATE|SYNOPSIS|NEAR TERM|SHORT TERM|LONG TERM|AVIATION|MARINE|FIRE WEATHER|HYDROLOGY)\b",
+            line,
+            re.I,
+        ):
+            header = line.split("...")[0].strip()
+        if header:
+            header = header.split("/", 1)[0].strip().upper()
+            current = header
+            sections.setdefault(current, [])
+            continue
+        if current:
+            sections[current].append(line)
+    return sections
+
+
+def _split_sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def fetch_afd_text(lat: float, lon: float) -> dict | None:
+    headers = {"User-Agent": _user_agent(), "Accept": "application/geo+json"}
+    try:
+        resp = requests.get(
+            f"https://api.weather.gov/points/{lat},{lon}",
+            headers=headers,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception:
+        return None
+    props = payload.get("properties") if isinstance(payload, dict) else None
+    if not props:
+        return None
+    cwa = props.get("cwa")
+    if not cwa:
+        return None
+    products_url = f"https://api.weather.gov/products/types/AFD/locations/{cwa}"
+    try:
+        resp = requests.get(products_url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        prod_payload = resp.json()
+    except Exception:
+        return None
+    items = prod_payload.get("products") if isinstance(prod_payload, dict) else None
+    if not items:
+        return None
+    latest = items[0]
+    product_id = latest.get("id")
+    issued = latest.get("issuanceTime")
+    if not product_id:
+        return None
+    try:
+        detail = requests.get(f"https://api.weather.gov/products/{product_id}", headers=headers, timeout=10)
+        detail.raise_for_status()
+        detail_payload = detail.json()
+    except Exception:
+        return None
+    raw_text = detail_payload.get("productText") or ""
+    return {
+        "id": product_id,
+        "issued": issued,
+        "text": raw_text,
+        "headline": latest.get("productName") or "Area Forecast Discussion",
+        "cwa": cwa,
+    }
+
+
+def summarize_afd(
+    afd: dict | None,
+    max_items: int = 4,
+    max_chars: int = 700,
+    per_item_max: int = 220,
+) -> list[str] | None:
+    if not afd:
+        return None
+    text = _strip_html_preserve_lines(afd.get("text", ""))
+    if not text:
+        return None
+    cleaned = _strip_afd_header(text)
+    if not cleaned:
+        cleaned = text
+    sections = _extract_afd_sections(cleaned)
+    if not sections:
+        sections = {"GENERAL": cleaned.splitlines()}
+    preferred = ["UPDATE", "SYNOPSIS", "NEAR TERM", "SHORT TERM", "LONG TERM"]
+    keywords = (
+        "rain",
+        "shower",
+        "storm",
+        "thunder",
+        "severe",
+        "flood",
+        "front",
+        "cold",
+        "warm",
+        "wind",
+        "gust",
+        "snow",
+        "ice",
+        "fog",
+        "heat",
+        "temperature",
+        "humid",
+        "dry",
+        "risk",
+        "confidence",
+        "uncertainty",
+        "timing",
+    )
+    highlights = []
+    seen = set()
+
+    def add_highlight(sentence: str):
+        sentence = " ".join(sentence.split())
+        if not sentence:
+            return
+        if len(sentence) > per_item_max:
+            sentence = sentence[:per_item_max].rstrip() + "..."
+        if sentence in seen:
+            return
+        seen.add(sentence)
+        highlights.append(sentence)
+
+    for label in preferred:
+        lines = sections.get(label)
+        if not lines:
+            continue
+        block = " ".join(lines)
+        for sentence in _split_sentences(block):
+            if len(highlights) >= max_items:
+                break
+            lowered = sentence.lower()
+            if any(keyword in lowered for keyword in keywords):
+                add_highlight(sentence)
+        if len(highlights) < max_items:
+            sentences = _split_sentences(block)
+            if sentences:
+                add_highlight(sentences[0])
+        if len(highlights) >= max_items:
+            break
+
+    if not highlights:
+        fallback = " ".join(cleaned.split())
+        if not fallback:
+            return None
+        return [fallback[:max_chars].rstrip() + ("..." if len(fallback) > max_chars else "")]
+
+    trimmed = []
+    total = 0
+    for item in highlights:
+        if total + len(item) > max_chars and trimmed:
+            break
+        trimmed.append(item)
+        total += len(item) + 1
+    return trimmed
+
+
 def resolve_alert_zones(lat: float, lon: float) -> list[str]:
     headers = {"User-Agent": _user_agent(), "Accept": "application/geo+json"}
     try:
