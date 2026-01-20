@@ -103,4 +103,4 @@ Open an issue or discussion to share your thoughts.
 
 ---
 
-*Last updated: January 2024*
+*Last updated: January 2026*
