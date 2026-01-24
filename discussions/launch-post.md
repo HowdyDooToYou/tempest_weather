@@ -1,6 +1,6 @@
 # Tempest Air & Weather: Project Status and Roadmap
 
-> **Note:** This document was originally a launch kickoff post. It has been updated to reflect the current state of the project as of January 2024.
+> **Note:** This document was originally a launch kickoff post. It has been updated to reflect the current state of the project as of January 2026.
 
 ## Current Status: v1.0 Complete ✅
 
