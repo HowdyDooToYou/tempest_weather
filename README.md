@@ -9,8 +9,9 @@ A personal weather station dashboard built with Streamlit that aggregates real-t
 - **Real-time Monitoring**: Live gauges for temperature, humidity, wind, pressure, UV index
 - **Air Quality Tracking**: PM2.5/PM10/AQI with smoke event suppression toggle
 - **Forecast Integration**: Tempest better_forecast API with Open-Meteo fallback
+- **Radar & Overlays**: Past/forecast radar loops with NOAA nowCOAST layers
 - **AI Daily Briefs**: GPT-4o-mini generated weather summaries with historical context
-- **Multi-channel Alerts**: Email + Verizon SMS for freeze warnings and NWS severe weather
+- **Multi-channel Alerts**: Email + Verizon SMS for freeze warnings and NWS severe weather (with duration tracking)
 - **Theme System**: Dark/light modes with custom CSS token picker
 - **Windows Service Support**: NSSM-based service installation for headless operation
 
@@ -18,7 +19,7 @@ A personal weather station dashboard built with Streamlit that aggregates real-t
 
 | Page | Description |
 |------|-------------|
-| **Home** | Daily brief, forecast chart, 7-day outlook, NWS alerts |
+| **Home** | Daily brief, forecast chart, 7-day outlook, radar maps, NWS alerts |
 | **Trends** | Reorderable time-series charts with metric selection |
 | **Compare** | Today vs yesterday, week vs week, year vs year overlays |
 | **Data** | Raw tables, health status, diagnostics |
@@ -172,6 +173,8 @@ Automatic notifications when temperature drops below thresholds:
 | Deep Freeze | 18°F |
 | Reset | 34°F |
 
+The Home page banner displays how long a freeze condition has been active based on saved alert state.
+
 ### NWS Integration
 
 - Active weather alerts from api.weather.gov
@@ -272,5 +275,7 @@ MIT License - See LICENSE file for details.
 - [WeatherFlow](https://weatherflow.com/) for the Tempest API
 - [Davis Instruments](https://www.davisinstruments.com/) for AirLink
 - [National Weather Service](https://www.weather.gov/) for alert data
+- [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) for radar services
+- [NOAA nowCOAST](https://nowcoast.noaa.gov/) for weather overlays
 - [Open-Meteo](https://open-meteo.com/) for forecast fallback
 - [OpenAI](https://openai.com/) for daily brief generation

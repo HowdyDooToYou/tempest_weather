@@ -24,6 +24,7 @@ Alerts can be triggered from:
 ### How It Works
 
 The freeze alert system monitors your Tempest station's temperature and sends notifications when thresholds are crossed.
+It also records when a freeze begins so the dashboard can display how long the condition has been active.
 
 ```
 obs_st (temperature) ──> alerting.py ──> Email/SMS
@@ -73,9 +74,10 @@ CREATE TABLE alert_state (
 );
 
 -- Keys used:
--- freeze_warning_sent: "1" or "0"
+-- freeze_sent: "1" or "0"
 -- deep_freeze_sent: "1" or "0"
--- last_alert_epoch: Unix timestamp
+-- freeze_started_at: Unix timestamp
+-- deep_freeze_started_at: Unix timestamp
 ```
 
 ### Message Format
