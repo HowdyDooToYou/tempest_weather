@@ -272,6 +272,8 @@ st.markdown(
         --accent-3-soft: rgba(242,168,91,0.12);
         --accent-3-border: rgba(242,168,91,0.35);
         --accent-3-glow: rgba(242,168,91,0.6);
+        --radius-card: 16px;
+        --radius-pill: 999px;
         --status-ok: #7be7d9;
         --status-warn: #f2a85b;
         --status-bad: #ff7b7b;
@@ -284,6 +286,7 @@ st.markdown(
         --status-warn-soft: rgba(242,168,91,0.08);
         --status-bad-soft: rgba(255,123,123,0.08);
         --status-bad-strong: rgba(255,123,123,0.14);
+        --shadow: 0 18px 40px rgba(0,0,0,0.35);
     }
     body {
         background: var(--bg);
@@ -293,7 +296,7 @@ st.markdown(
     .main { background: var(--bg); }
     .card {
         padding: 14px 16px;
-        border-radius: 12px;
+        border-radius: 16px;
         background: var(--surface-2);
         border: 1px solid var(--border);
         color: var(--text-primary);
@@ -727,14 +730,14 @@ st.markdown(
     .alert-banner {
         margin-top: 10px;
         padding: 8px 12px;
-        border-radius: 12px;
-        border: 1px solid rgba(97,165,255,0.45);
-        background: linear-gradient(135deg, rgba(97,165,255,0.2), var(--surface-3));
+        border-radius: var(--radius-card, 16px);
+        border: 1px solid var(--accent-2-border);
+        background: linear-gradient(135deg, var(--accent-2-soft), var(--surface-3));
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 10px;
-        box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+        box-shadow: var(--shadow);
     }
     .alert-banner .alert-title {
         font-weight: 700;
@@ -744,13 +747,17 @@ st.markdown(
         font-size: 0.8rem;
         color: var(--text-secondary);
     }
+    .alert-banner .alert-duration {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+    }
     .alert-banner.freeze {
-        border-color: rgba(97,165,255,0.55);
-        background: linear-gradient(135deg, rgba(97,165,255,0.25), var(--surface-3));
+        border-color: var(--accent-2-border);
+        background: linear-gradient(135deg, var(--accent-2-soft), var(--surface-3));
     }
     .alert-banner.deep-freeze {
-        border-color: rgba(89,197,255,0.6);
-        background: linear-gradient(135deg, rgba(89,197,255,0.28), var(--surface-3));
+        border-color: var(--accent-border);
+        background: linear-gradient(135deg, var(--accent-soft), var(--surface-3));
     }
     .sun-badge {
         display: inline-flex;
@@ -1960,9 +1967,11 @@ def clean_chart(data, height=240, title=None):
 
     return (
         chart
+        .configure_view(strokeOpacity=0)
         .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
         .configure_legend(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR)
         .configure_title(color=CHART_TITLE_COLOR)
+        .configure(background="transparent")
     )
 
 
@@ -2015,8 +2024,11 @@ def forecast_hourly_chart(hourly_df: pd.DataFrame | None):
 
     return (
         chart.properties(height=260)
+        .configure_view(strokeOpacity=0)
         .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
         .configure_legend(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR)
+        .configure_title(color=CHART_TITLE_COLOR)
+        .configure(background="transparent")
     )
 
 
@@ -2064,8 +2076,10 @@ def bar_chart(data, height=200, title=None, color=None):
             y=alt.Y("value:Q", title=None),
         )
         .properties(height=height)
+        .configure_view(strokeOpacity=0)
         .configure_axis(labelColor=CHART_LABEL_COLOR, titleColor=CHART_LABEL_COLOR, gridColor=CHART_GRID_COLOR)
         .configure_title(color=CHART_TITLE_COLOR)
+        .configure(background="transparent")
     )
     if title:
         chart = chart.properties(title=title)
@@ -3550,6 +3564,7 @@ status_idle_border = hex_to_rgba(status_idle, 0.35)
 status_warn_soft = hex_to_rgba(status_warn, 0.08)
 status_bad_soft = hex_to_rgba(status_bad, 0.08)
 status_bad_strong = hex_to_rgba(status_bad, 0.14)
+theme_shadow = "0 12px 30px rgba(0, 0, 0, 0.08)" if theme["mode"] == "light" else "0 18px 40px rgba(0, 0, 0, 0.35)"
 THEME_MODE = theme["mode"]
 THEME_COLORS = {
     "accent": theme["accent"],
@@ -3612,6 +3627,8 @@ st.markdown(
       --accent-3-soft: {accent3_soft};
       --accent-3-border: {accent3_border};
       --accent-3-glow: {accent3_glow};
+      --radius-card: 16px;
+      --radius-pill: 999px;
       --status-ok: {status_ok};
       --status-warn: {status_warn};
       --status-bad: {status_bad};
@@ -3624,6 +3641,7 @@ st.markdown(
       --status-warn-soft: {status_warn_soft};
       --status-bad-soft: {status_bad_soft};
       --status-bad-strong: {status_bad_strong};
+      --shadow: {theme_shadow};
     }}
     </style>
     """,

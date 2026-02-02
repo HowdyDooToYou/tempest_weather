@@ -16,6 +16,8 @@
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
   --font-sans: "Space Grotesk", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", "Consolas", monospace;
+  --radius-card: 16px;
+  --radius-pill: 999px;
   --text: var(--text-primary);
   --text-2: var(--text-secondary);
   --muted: var(--text-muted);
@@ -120,7 +122,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-primary);
@@ -150,7 +152,7 @@ body {
 .card {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   padding: 14px;
   box-shadow: var(--shadow);
 }
@@ -194,9 +196,10 @@ body {
 .chart-card {
   padding: 0 !important;
   overflow: hidden;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
 }
 
 .chart-card .title-row {
@@ -217,12 +220,25 @@ body {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 [data-testid="stVegaLiteChart"] > div,
 [data-testid="stAltairChart"] > div,
 [data-testid="stPlotlyChart"] > div,
 [data-testid="stChart"] > div {
+  background: transparent !important;
+}
+
+[data-testid="stVegaLiteChart"] canvas,
+[data-testid="stVegaLiteChart"] svg,
+[data-testid="stAltairChart"] canvas,
+[data-testid="stAltairChart"] svg,
+[data-testid="stPlotlyChart"] canvas,
+[data-testid="stPlotlyChart"] svg,
+[data-testid="stChart"] canvas,
+[data-testid="stChart"] svg {
   background: transparent !important;
 }
 
