@@ -4604,6 +4604,8 @@ page_ctx = {
     "forecast_updated": forecast_updated,
     "chart_renderer": clean_chart,
     "tz_name": LOCAL_TZ,
+    "station_lat": lat_for_forecast,
+    "station_lon": lon_for_forecast,
     "metrics": metrics_ctx,
     "brief_today": brief_today,
     "brief_yesterday": brief_yesterday,
