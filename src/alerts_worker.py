@@ -193,13 +193,14 @@ def run_once(db_path: Path) -> None:
         else:
             obs_epoch, temp_c = latest_temp_c(conn)
     now_local = datetime.now(timezone.utc).astimezone(ZoneInfo(LOCAL_TZ))
+    now_epoch = int(now_local.timestamp())
 
     if obs_epoch is None or temp_c is None:
         log("WARN: No recent Tempest data found for freeze alerts.")
     else:
         temp_f = c_to_f(temp_c)
         alert_state = load_alert_state(str(db_path))
-        alerts_to_send, reset_updates = determine_freeze_alerts(temp_f, alert_state)
+        alerts_to_send, reset_updates = determine_freeze_alerts(temp_f, alert_state, now_epoch=now_epoch)
         if reset_updates:
             save_alert_state(str(db_path), reset_updates)
 

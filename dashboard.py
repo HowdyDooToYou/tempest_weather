@@ -1266,7 +1266,7 @@ def send_test_alerts(temp_f, when_local):
     return email_sent, sms_sent, email_error, sms_error
 
 
-def build_freeze_banner(temp_f, when_local):
+def build_freeze_banner(temp_f, when_local, alert_state=None):
     if temp_f is None or pd.isna(temp_f):
         return ""
     temp_f = float(temp_f)
@@ -1279,11 +1279,29 @@ def build_freeze_banner(temp_f, when_local):
         level_class = "freeze"
     else:
         return ""
+    duration_text = ""
+    if alert_state:
+        try:
+            started_at = int(alert_state.get("freeze_started_at") or 0)
+        except (TypeError, ValueError):
+            started_at = 0
+        if started_at and when_local is not None:
+            try:
+                now_epoch = int(when_local.timestamp())
+                duration_text = fmt_duration(max(0, now_epoch - started_at))
+            except Exception:
+                duration_text = ""
     detail = f"Tempest {temp_f:.1f} F at {time_text}"
+    duration_html = (
+        f"<span class=\"alert-duration\">Duration {html_escape(duration_text)}</span>"
+        if duration_text
+        else ""
+    )
     return (
         f"<div class=\"alert-banner {level_class}\">"
         f"<span class=\"alert-title\">{html_escape(title)}</span>"
         f"<span class=\"alert-meta\">{html_escape(detail)}</span>"
+        f"{duration_html}"
         "</div>"
     )
 
@@ -4143,10 +4161,12 @@ if sun_times:
 alert_overrides = alert_overrides_from_session()
 alert_email_to, alert_sms_to = resolve_alert_recipients(DB_PATH, overrides=alert_overrides)
 alert_state = load_alert_state(DB_PATH)
-alerts_to_send, reset_updates = determine_freeze_alerts(current_temp, alert_state)
+now_epoch = int(now_local.timestamp())
+alerts_to_send, reset_updates = determine_freeze_alerts(current_temp, alert_state, now_epoch=now_epoch)
 if reset_updates:
     save_alert_state(DB_PATH, reset_updates)
-alert_banner_html = build_freeze_banner(current_temp, now_local)
+    alert_state.update(reset_updates)
+alert_banner_html = build_freeze_banner(current_temp, now_local, alert_state=alert_state)
 if alerts_to_send and not ALERTS_WORKER_ENABLED and current_temp is not None:
     temp_value = float(current_temp)
     for alert in alerts_to_send:

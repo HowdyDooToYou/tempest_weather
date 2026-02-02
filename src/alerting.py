@@ -11,6 +11,7 @@ ALERT_CONFIG_TABLE = "alert_config"
 DEFAULT_SMTP_HOST = "smtp.gmail.com"
 DEFAULT_SMTP_PORT = 587
 DEFAULT_SMTP_CREDENTIAL_TARGET = "TempestWeatherSMTP"
+ALERT_STATE_BOOL_KEYS = {"freeze_sent", "deep_freeze_sent"}
 
 
 def _now_epoch() -> int:
@@ -115,9 +116,19 @@ def load_alert_state(db_path: str) -> dict:
     ensure_alert_state_table(db_path)
     with sqlite3.connect(db_path) as conn:
         rows = conn.execute(f"SELECT key, value FROM {ALERT_STATE_TABLE}").fetchall()
-    state = {key: value == "1" for key, value in rows}
+    state = {}
+    for key, value in rows:
+        if key in ALERT_STATE_BOOL_KEYS:
+            state[key] = value == "1"
+            continue
+        try:
+            state[key] = int(value)
+        except (TypeError, ValueError):
+            state[key] = value
     state.setdefault("freeze_sent", False)
     state.setdefault("deep_freeze_sent", False)
+    state.setdefault("freeze_started_at", 0)
+    state.setdefault("deep_freeze_started_at", 0)
     return state
 
 
@@ -128,12 +139,18 @@ def save_alert_state(db_path: str, updates: dict) -> None:
     now_epoch = _now_epoch()
     with sqlite3.connect(db_path) as conn:
         for key, value in updates.items():
+            if isinstance(value, bool):
+                stored_value = "1" if value else "0"
+            elif value is None:
+                stored_value = "0"
+            else:
+                stored_value = str(value)
             conn.execute(
                 f"""
                 INSERT OR REPLACE INTO {ALERT_STATE_TABLE} (key, value, updated_at)
                 VALUES (?, ?, ?)
                 """,
-                (key, "1" if value else "0", now_epoch),
+                (key, stored_value, now_epoch),
             )
         conn.commit()
 
@@ -335,7 +352,7 @@ def send_verizon_sms(
     )
 
 
-def determine_freeze_alerts(temp_f: float, state: dict) -> tuple[list[dict], dict]:
+def determine_freeze_alerts(temp_f: float, state: dict, now_epoch: int | None = None) -> tuple[list[dict], dict]:
     alerts = []
     reset_updates = {}
     if temp_f is None:
@@ -346,22 +363,37 @@ def determine_freeze_alerts(temp_f: float, state: dict) -> tuple[list[dict], dic
         return alerts, reset_updates
     if math.isnan(temp_f):
         return alerts, reset_updates
+    now_epoch = int(now_epoch) if now_epoch is not None else _now_epoch()
     freeze_sent = state.get("freeze_sent", False)
     deep_freeze_sent = state.get("deep_freeze_sent", False)
+    freeze_started_at = int(state.get("freeze_started_at") or 0)
+    deep_freeze_started_at = int(state.get("deep_freeze_started_at") or 0)
     if temp_f > float(os.getenv("FREEZE_RESET_F", "34")):
         if freeze_sent or deep_freeze_sent:
             reset_updates = {"freeze_sent": False, "deep_freeze_sent": False}
+        if freeze_started_at or deep_freeze_started_at:
+            reset_updates.update({"freeze_started_at": 0, "deep_freeze_started_at": 0})
         return alerts, reset_updates
-    if temp_f <= float(os.getenv("DEEP_FREEZE_F", "18")) and not deep_freeze_sent:
-        alerts.append({
-            "title": "Deep Freeze Advisory",
-            "state_updates": {"deep_freeze_sent": True, "freeze_sent": True},
-        })
-    elif temp_f <= float(os.getenv("FREEZE_WARNING_F", "32")) and not freeze_sent:
-        alerts.append({
-            "title": "Freeze Warning",
-            "state_updates": {"freeze_sent": True},
-        })
+    if temp_f <= float(os.getenv("DEEP_FREEZE_F", "18")):
+        if not freeze_started_at:
+            reset_updates["freeze_started_at"] = now_epoch
+        if not deep_freeze_started_at:
+            reset_updates["deep_freeze_started_at"] = now_epoch
+        if not deep_freeze_sent:
+            alerts.append({
+                "title": "Deep Freeze Advisory",
+                "state_updates": {"deep_freeze_sent": True, "freeze_sent": True},
+            })
+    elif temp_f <= float(os.getenv("FREEZE_WARNING_F", "32")):
+        if not freeze_started_at:
+            reset_updates["freeze_started_at"] = now_epoch
+        if deep_freeze_started_at:
+            reset_updates["deep_freeze_started_at"] = 0
+        if not freeze_sent:
+            alerts.append({
+                "title": "Freeze Warning",
+                "state_updates": {"freeze_sent": True},
+            })
     return alerts, reset_updates
 
 
